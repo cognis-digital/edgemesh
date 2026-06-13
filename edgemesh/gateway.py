@@ -15,6 +15,7 @@ import json
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from edgemesh.cluster import register_into
 from edgemesh.registry import BackendRegistry
 from edgemesh.router import NoBackendError, Router
 
@@ -29,6 +30,7 @@ def _catalog_as_openai(registry: BackendRegistry) -> dict:
 
 def make_handler(registry: BackendRegistry) -> type[BaseHTTPRequestHandler]:
     router = Router(registry)
+    nodes: dict[str, dict] = {}  # node name -> {address, backends}
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -49,10 +51,15 @@ def make_handler(registry: BackendRegistry) -> type[BaseHTTPRequestHandler]:
                 self._send(200, _catalog_as_openai(registry))
             elif self.path.rstrip("/") == "/healthz":
                 self._send(200, {"status": "ok", "backends": registry.names()})
+            elif self.path.rstrip("/") == "/cluster/nodes":
+                self._send(200, {"nodes": nodes})
             else:
                 self._send(404, {"error": {"message": f"not found: {self.path}"}})
 
         def do_POST(self) -> None:
+            if self.path.rstrip("/") == "/cluster/register":
+                self._register()
+                return
             if self.path.rstrip("/") != "/v1/chat/completions":
                 self._send(404, {"error": {"message": f"not found: {self.path}"}})
                 return
@@ -81,6 +88,20 @@ def make_handler(registry: BackendRegistry) -> type[BaseHTTPRequestHandler]:
                 self._send(200, payload)
             except Exception as exc:  # upstream failure -> 502
                 self._send(502, {"error": {"message": f"backend {backend.name} failed: {exc}"}})
+
+        def _register(self) -> None:
+            """A cluster node registers its backends with this coordinator."""
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                payload = json.loads(self.rfile.read(length) or b"{}")
+            except json.JSONDecodeError:
+                self._send(400, {"error": {"message": "invalid JSON"}})
+                return
+            added = register_into(registry, payload)
+            node = payload.get("node", "unknown")
+            nodes[node] = {"address": payload.get("address"), "backends": added}
+            self._send(200, {"ok": True, "node": node, "added": added,
+                             "catalog_size": len(registry.model_catalog())})
 
     return Handler
 
