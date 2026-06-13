@@ -115,8 +115,8 @@ reputation on completion.
 | Scheduler · privacy routing · auction | ✅ built (`scheduler.py`) |
 | Credits + reputation ledger | ✅ built (`ledger.py`) — *accounting unit, not a token* |
 | Signed short-lived tokens | ✅ built (`protocol.py`); mTLS = roadmap |
-| Distributed execution + result aggregation (mesh-level) | ✅ built (`executor.py`: `run_job`, scatter-gather) |
-| Tensor-level model sharding (one model across machines) | 🟡 delegated to a sharding backend (exo/Petals/vLLM+Ray); not reimplemented |
+| Distributed execution + aggregation + **failover** (mesh-level) | ✅ built (`executor.py`: `run_job` with next-best-node failover, scatter-gather) |
+| Run a model too big for one device (sharding routing) | ✅ built — routes/executes via a `--sharding` node; the tensor split is the backend's job (exo/Petals/vLLM+Ray) |
 | Resource controls · sandboxing · distributed training | ⬜ roadmap |
 | Tradeable token / on-chain marketplace settlement | ⬜ out of scope (securities decision) — see [DISCLAIMER.md](DISCLAIMER.md) |
 | Pluggable transports (mesh / LoRa / off-internet) | ⬜ seam designed; adapters = roadmap |

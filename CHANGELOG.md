@@ -3,6 +3,29 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.5.0] — 2026-06-13
+
+The "run a model no single device can hold" release: sharding-backend routing +
+execution failover.
+
+### Added
+- **Sharding node type** (`NodeInfo.sharding`): a node can declare it fronts a
+  runtime that splits one model across machines (exo / Petals / vLLM+Ray /
+  llama.cpp RPC). The scheduler **exempts sharding nodes from the per-node VRAM
+  filter**, so an oversized model routes to one automatically. Register with
+  `edgemesh node <coordinator> --sharding --serve-url <exo/vLLM /v1>`.
+- **Execution failover** in `run_job`: candidates are tried best-first; a node that
+  errors is penalized (reputation down) and the job fails over to the next-best
+  node (up to `max_attempts`), with per-attempt reporting.
+- Scheduler `ranked()` (best-first eligible nodes) shared by scheduling + failover;
+  single-fit nodes are preferred over sharding nodes for models that fit.
+- Tests: oversized-model → sharding-node routing, and failover past a dead node
+  (44 tests total).
+
+### Honest scope
+edgemesh now **routes to and executes against** a sharding backend; the tensor-level
+split itself is performed by that backend (exo/Petals/vLLM+Ray), not by edgemesh.
+
 ## [0.4.0] — 2026-06-13
 
 The "distributed execution" release: the swarm now actually *runs* work, not just

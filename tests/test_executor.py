@@ -98,3 +98,32 @@ def test_scatter_gather_distributes_and_aggregates(backend):
 def test_needs_sharding_helper():
     assert needs_sharding(Job.new("m", min_vram_mb=999999), [_node("a", "u", vram=1000)])
     assert not needs_sharding(Job.new("m", min_vram_mb=1000), [_node("a", "u", vram=8000)])
+
+
+def _shard_node(nid, endpoint):
+    n = _node(nid, endpoint, vram=2000)   # tiny local VRAM...
+    n.sharding = True                     # ...but fronts a sharding runtime
+    return n
+
+
+def test_oversized_model_routes_to_sharding_node(backend):
+    sc = SwarmController()
+    sc.ledger.grant("buyer", 10)
+    sc.register(_node("small", backend, vram=2000))        # cannot fit
+    sc.register(_shard_node("shard", backend))             # spans machines
+    res = run_job(sc, Job.new("huge-405b", min_vram_mb=200000),
+                  {"messages": [{"role": "user", "content": "go"}]}, "buyer", price=1.0)
+    assert res["ok"] and res["node_id"] == "shard" and res["sharded"] is True
+
+
+def test_failover_to_next_best_node(backend):
+    sc = SwarmController()
+    sc.ledger.grant("buyer", 10)
+    # a dead endpoint with HIGHER reputation -> tried first, then fails over
+    sc.register(_node("dead", "http://127.0.0.1:1", vram=12000))
+    sc.register(_node("live", backend, vram=12000))
+    sc.ledger.reputation["dead"] = 4.0
+    res = run_job(sc, Job.new("m", min_vram_mb=4000),
+                  {"messages": [{"role": "user", "content": "hi"}]}, "buyer")
+    assert res["ok"] and res["node_id"] == "live"
+    assert any(a["node_id"] == "dead" for a in res["attempts"])  # failed over past dead
