@@ -1,0 +1,14 @@
+# edgemesh gateway. `docker compose up` exposes the unified /v1 on :8780.
+# Mount a config so registered backends persist across restarts; host networking
+# (Linux) lets the container reach backends running on the host's localhost.
+services:
+  edgemesh:
+    build: .
+    image: cognis-digital/edgemesh:latest
+    ports:
+      - "8780:8780"
+    volumes:
+      - ./edgemesh-config:/root/.edgemesh
+    restart: unless-stopped
+    # On Linux, uncomment to let edgemesh discover host-local backends (Ollama, etc.):
+    # network_mode: host
