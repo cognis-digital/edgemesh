@@ -26,7 +26,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 from edgemesh.protocol import Job
-from edgemesh.scheduler import eligible
+from edgemesh.scheduler import eligible, ranked
 from edgemesh.swarm import SwarmController
 
 
@@ -56,28 +56,40 @@ def needs_sharding(job: Job, nodes) -> bool:
 
 
 def run_job(swarm: SwarmController, job: Job, payload: dict, consumer: str,
-            *, price: float = 1.0, timeout: float = 300.0) -> dict:
-    """Schedule -> execute on the assigned node -> settle. Returns a result dict."""
+            *, price: float = 1.0, timeout: float = 300.0, max_attempts: int = 3) -> dict:
+    """Schedule -> execute -> settle, with failover to the next-best node.
+
+    Oversized models (no single node fits) route to a sharding-capable node if one
+    is registered; otherwise a clear error explains how to add one.
+    """
     runnable = _runnable(list(swarm.nodes.values()))
-    if needs_sharding(job, runnable):
-        return {"ok": False, "error": "model does not fit any single node; register a "
-                "sharding-capable backend (exo/Petals/vLLM+Ray/llama.cpp-RPC) as a node"}
-    a = swarm.submit(job, price=price)
-    if not a:
-        return {"ok": False, "error": "no eligible node for this job"}
-    node = swarm.nodes.get(a.node_id)
-    if not node or not node.endpoint:
-        swarm.complete(job.job_id, consumer, success=False)
-        return {"ok": False, "error": f"assigned node {a.node_id} has no servable endpoint"}
+    order = ranked(job, runnable, swarm.ledger, price)
+    if not order:
+        if needs_sharding(job, runnable):
+            return {"ok": False, "error": "model does not fit any single node and no "
+                    "sharding-capable node is registered — add one with "
+                    "`edgemesh node <coordinator> --sharding --serve-url <exo/vLLM /v1>`"}
+        return {"ok": False, "error": "no eligible runnable node for this job"}
+
     payload = {**payload, "model": job.model}
-    try:
-        resp = call_backend(node.endpoint, payload, timeout=timeout)
-    except Exception as exc:
-        settle = swarm.complete(job.job_id, consumer, success=False)
-        return {"ok": False, "error": f"node {a.node_id} failed: {exc}", **settle}
-    settle = swarm.complete(job.job_id, consumer, success=True)
-    return {"ok": True, "node_id": a.node_id, "result": resp,
-            "paid": settle.get("paid"), "reputation": settle.get("reputation")}
+    attempts: list[dict] = []
+    for node in order[:max_attempts]:
+        try:
+            resp = call_backend(node.endpoint, payload, timeout=timeout)
+        except Exception as exc:  # node failed -> penalize + fail over
+            rep = swarm.ledger.record_outcome(node.node_id, False)
+            if node.node_id in swarm.nodes:
+                swarm.nodes[node.node_id].reputation = rep
+            attempts.append({"node_id": node.node_id, "error": str(exc)})
+            continue
+        paid = price if swarm.ledger.settle(consumer, node.node_id, price) else 0.0
+        rep = swarm.ledger.record_outcome(node.node_id, True)
+        if node.node_id in swarm.nodes:
+            swarm.nodes[node.node_id].reputation = rep
+        return {"ok": True, "node_id": node.node_id, "sharded": node.sharding,
+                "result": resp, "paid": paid, "reputation": rep, "attempts": attempts}
+    return {"ok": False, "error": f"all {len(attempts)} candidate node(s) failed",
+            "attempts": attempts}
 
 
 def scatter_gather(swarm: SwarmController, model: str, prompts: list[str],

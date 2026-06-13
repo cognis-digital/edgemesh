@@ -67,6 +67,10 @@ class NodeInfo:
     profile: HardwareProfile
     reputation: float = 1.0
     last_seen: float = 0.0
+    # A sharding node fronts a runtime that splits one model across machines
+    # (exo / Petals / vLLM+Ray / llama.cpp RPC). It can serve models too big for a
+    # single device, so the scheduler exempts it from the per-node VRAM filter.
+    sharding: bool = False
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -78,7 +82,8 @@ class NodeInfo:
         return cls(node_id=d["node_id"], name=d.get("name", ""),
                    node_class=d.get("node_class", CLASS_C), endpoint=d.get("endpoint", ""),
                    profile=HardwareProfile(**prof) if not isinstance(prof, HardwareProfile) else prof,
-                   reputation=float(d.get("reputation", 1.0)), last_seen=float(d.get("last_seen", 0.0)))
+                   reputation=float(d.get("reputation", 1.0)), last_seen=float(d.get("last_seen", 0.0)),
+                   sharding=bool(d.get("sharding", False)))
 
 
 @dataclass

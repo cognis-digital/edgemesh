@@ -29,7 +29,7 @@ def node_profile() -> HardwareProfile:
 
 
 def build_node_info(name: str | None = None, node_class: str = CLASS_C,
-                    endpoint: str = "") -> NodeInfo:
+                    endpoint: str = "", sharding: bool = False) -> NodeInfo:
     """Assemble this device's NodeInfo for swarm registration."""
     return NodeInfo(
         node_id=uuid.uuid4().hex[:12],
@@ -37,4 +37,5 @@ def build_node_info(name: str | None = None, node_class: str = CLASS_C,
         node_class=node_class,
         endpoint=endpoint,
         profile=node_profile(),
+        sharding=sharding,
     )

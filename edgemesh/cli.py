@@ -92,6 +92,9 @@ def main(argv: list[str] | None = None) -> int:
     p_node.add_argument("--name", default=None)
     p_node.add_argument("--serve-url", default=None,
                         help="this node's reachable OpenAI /v1 base (auto-discovered if omitted)")
+    p_node.add_argument("--sharding", action="store_true",
+                        help="this node fronts a sharding runtime (exo/Petals/vLLM+Ray) that "
+                             "can serve models too big for one machine")
 
     p_swarm = sub.add_parser("swarm", help="show the swarm control plane (nodes + ledger)")
     p_swarm.add_argument("--coordinator", default="http://127.0.0.1:8780")
@@ -191,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
             if local.backends():
                 endpoint = (local.backends()[0].base_url
                             .replace("127.0.0.1", local_ip()).replace("localhost", local_ip()))
-        info = build_node_info(args.name, args.node_class, endpoint or "")
+        info = build_node_info(args.name, args.node_class, endpoint or "", sharding=args.sharding)
         req = urllib.request.Request(
             args.coordinator_url.rstrip("/") + "/swarm/register",
             data=dumps(info.to_dict()), headers={"Content-Type": "application/json"}, method="POST")
@@ -201,8 +204,8 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             print(f"swarm join failed: {exc}", file=sys.stderr); return 1
         p = info.profile
-        print(f"joined swarm as node {resp.get('node_id')} (class {args.node_class}, "
-              f"{p.accelerator}, {(p.usable_vram_mb() or 0)//1024}GB usable); "
+        kind = "sharding node" if args.sharding else f"{p.accelerator}, {(p.usable_vram_mb() or 0)//1024}GB usable"
+        print(f"joined swarm as node {resp.get('node_id')} (class {args.node_class}, {kind}); "
               f"endpoint {endpoint or '(none -> schedule-only)'}; "
               f"swarm size {resp.get('swarm_size')}, reputation {resp.get('reputation')}")
         return 0
