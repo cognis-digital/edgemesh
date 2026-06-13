@@ -97,8 +97,21 @@ edgemesh swarm --coordinator http://<coordinator-ip>:8780
 edgemesh run "summarize this" --model llama3.1-8b --coordinator http://<coordinator-ip>:8780
 ```
 
-Batch / data-parallel work fans across nodes via `POST /swarm/map`
+**Streaming** works end-to-end: send `"stream": true` to `/v1/chat/completions` or
+`/swarm/run` and edgemesh relays the upstream `text/event-stream` token-by-token.
+
+**Batch / data-parallel** work fans across nodes via `POST /swarm/map`
 (`{"model","prompts":[...],"aggregate":"first|concat|vote|all"}`).
+
+**Run a model too big for one machine** — register a sharding backend with a preset:
+
+```bash
+edgemesh presets                                   # exo, vLLM+Ray, Petals, llama.cpp-RPC, GPUStack, …
+edgemesh node http://<coordinator-ip>:8780 --preset exo   # implies --sharding, sets the /v1
+```
+
+Oversized models then route to that node automatically; models that fit a single
+device still run there.
 
 A job carries a data-sensitivity level; the **privacy engine** routes confidential
 work to Class-A nodes only, the **scheduler** filters by VRAM fit and runs a
@@ -115,8 +128,8 @@ reputation on completion.
 | Scheduler · privacy routing · auction | ✅ built (`scheduler.py`) |
 | Credits + reputation ledger | ✅ built (`ledger.py`) — *accounting unit, not a token* |
 | Signed short-lived tokens | ✅ built (`protocol.py`); mTLS = roadmap |
-| Distributed execution + aggregation + **failover** (mesh-level) | ✅ built (`executor.py`: `run_job` with next-best-node failover, scatter-gather) |
-| Run a model too big for one device (sharding routing) | ✅ built — routes/executes via a `--sharding` node; the tensor split is the backend's job (exo/Petals/vLLM+Ray) |
+| Distributed execution + aggregation + **failover** + **streaming (SSE)** | ✅ built (`executor.py`: `run_job` w/ failover, `scatter_gather`, `stream_job`) |
+| Run a model too big for one device (sharding routing + **presets**) | ✅ built — `edgemesh node --preset exo` (9 presets); tensor split is the backend's job (exo/Petals/vLLM+Ray) |
 | Resource controls · sandboxing · distributed training | ⬜ roadmap |
 | Tradeable token / on-chain marketplace settlement | ⬜ out of scope (securities decision) — see [DISCLAIMER.md](DISCLAIMER.md) |
 | Pluggable transports (mesh / LoRa / off-internet) | ⬜ seam designed; adapters = roadmap |

@@ -3,6 +3,24 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.6.0] — 2026-06-13
+
+The "streaming + presets" release.
+
+### Added
+- **Streaming (SSE)**: `stream: true` now streams token-by-token through the
+  gateway. `/v1/chat/completions` relays an upstream event-stream verbatim, and
+  `/swarm/run` streams from the assigned node (`executor.open_stream` /
+  `iter_chunks` / `stream_job`; settlement on a successful open). `text/event-stream`,
+  framed by `Connection: close`.
+- **Sharding-backend presets** (`presets.py`, `edgemesh presets`): nine one-command
+  setups — **exo, vLLM+Ray, Petals, llama.cpp-RPC, GPUStack, Ray Serve, SGLang,
+  TGI, NVIDIA NIM** — each with its default `/v1`, a start hint, a docs link, and an
+  honest `multi_machine` flag (exo/vLLM+Ray/… span machines; TGI/NIM are single-node
+  multi-GPU). `edgemesh node <coordinator> --preset exo` registers a sharding node
+  with the right endpoint in one go.
+- Tests for streaming relay + presets (49 tests total).
+
 ## [0.5.0] — 2026-06-13
 
 The "run a model no single device can hold" release: sharding-backend routing +

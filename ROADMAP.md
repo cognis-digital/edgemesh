@@ -6,10 +6,13 @@ Directional, not a promise. Issues and PRs welcome.
 - ✅ **Distributed execution + aggregation** (0.4) and **failover + sharding-node
   routing** (0.5): `run_job` tries nodes best-first, fails over past dead ones, and
   routes oversized models to a `--sharding` node; `scatter_gather` fans batches.
-- **Streaming responses** (SSE) through `run_job` / the gateway.
-- **Sharding backend adapters**: turnkey `--sharding` presets for exo / vLLM+Ray /
-  Petals so standing one up is one command (today you point `--serve-url` at it).
+- ✅ **Streaming responses** (SSE) through `/v1/chat/completions`, `/swarm/run` (0.6).
+- ✅ **Sharding-backend presets** — `edgemesh node --preset <exo|vllm-ray|…>` (0.6).
 - **mTLS + signed-profile attestation** between node and control plane (tokens ship today).
+- **Stream settlement on completion** (today credits settle on a successful stream
+  *open*; meter actual tokens streamed instead).
+- **Auto-spawn a preset**: optionally launch the sharding runtime from the preset's
+  start hint, not just register an already-running one.
 - **Resource controls** (CPU/RAM/GPU/power caps) and **sandboxed** job execution on nodes.
 - **Pluggable transports**: LAN discovery, mesh, and off-internet adapters behind
   the existing transport seam.
