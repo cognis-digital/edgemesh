@@ -285,7 +285,7 @@ fleet:
 - [`modelroute`](https://github.com/cognis-digital/modelroute) · [`uncensored-fleet`](https://github.com/cognis-digital/uncensored-fleet) · [`cognis-code`](https://github.com/cognis-digital/cognis-code) — backends edgemesh discovers and meshes
 - [`engram`](https://github.com/cognis-digital/engram) / [`hermes`](https://github.com/cognis-digital/hermes) — durable agent memory alongside the compute layer
 
-**280+ open security & OSINT tools →** [github.com/cognis-digital](https://github.com/cognis-digital)
+**300+ open security & OSINT tools →** [github.com/cognis-digital](https://github.com/cognis-digital)
 
 ## Docs
 **Adoption:** [`docs/USE_CASES.md`](docs/USE_CASES.md) · [`SECURITY.md`](SECURITY.md) · [`THREAT_MODEL.md`](THREAT_MODEL.md)
