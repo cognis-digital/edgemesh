@@ -30,7 +30,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from edgemesh import __version__, catalog, hardware, manager, menu, wizard
+from edgemesh import __version__, catalog, hardware, manager, menu, presets, wizard
 from edgemesh.backends import Backend, probe
 from edgemesh.cluster import join, local_ip
 from edgemesh.gateway import serve
@@ -95,6 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     p_node.add_argument("--sharding", action="store_true",
                         help="this node fronts a sharding runtime (exo/Petals/vLLM+Ray) that "
                              "can serve models too big for one machine")
+    p_node.add_argument("--preset", choices=presets.keys(), default=None,
+                        help="use a sharding-backend preset (implies --sharding; sets --serve-url)")
+
+    sub.add_parser("presets", help="list sharding-backend presets")
 
     p_swarm = sub.add_parser("swarm", help="show the swarm control plane (nodes + ledger)")
     p_swarm.add_argument("--coordinator", default="http://127.0.0.1:8780")
@@ -187,14 +191,28 @@ def main(argv: list[str] | None = None) -> int:
               f"cluster catalog now {resp.get('catalog_size')} model(s)")
         return 0
 
+    if args.command == "presets":
+        for p in presets.PRESETS.values():
+            tag = "multi-machine" if p.multi_machine else "single-node multi-GPU"
+            print(f"{p.key:13s} [{tag}]  {p.default_url}")
+            print(f"   {p.title}")
+            print(f"   start: {p.start_hint}")
+            print(f"   docs:  {p.docs_url}")
+        print("\nUse:  edgemesh node <coordinator> --preset <key>")
+        return 0
+
     if args.command == "node":
+        sharding = args.sharding
         endpoint = args.serve_url
-        if not endpoint:  # auto-discover a local backend to advertise
+        if args.preset:                       # preset implies sharding + a default /v1
+            sharding = True
+            endpoint = endpoint or presets.get(args.preset).default_url
+        if not endpoint and not sharding:     # auto-discover a local backend to advertise
             local = BackendRegistry(); local.discover_local()
             if local.backends():
                 endpoint = (local.backends()[0].base_url
                             .replace("127.0.0.1", local_ip()).replace("localhost", local_ip()))
-        info = build_node_info(args.name, args.node_class, endpoint or "", sharding=args.sharding)
+        info = build_node_info(args.name, args.node_class, endpoint or "", sharding=sharding)
         req = urllib.request.Request(
             args.coordinator_url.rstrip("/") + "/swarm/register",
             data=dumps(info.to_dict()), headers={"Content-Type": "application/json"}, method="POST")
@@ -204,7 +222,8 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             print(f"swarm join failed: {exc}", file=sys.stderr); return 1
         p = info.profile
-        kind = "sharding node" if args.sharding else f"{p.accelerator}, {(p.usable_vram_mb() or 0)//1024}GB usable"
+        kind = (f"sharding node{' (' + args.preset + ')' if args.preset else ''}" if sharding
+                else f"{p.accelerator}, {(p.usable_vram_mb() or 0)//1024}GB usable")
         print(f"joined swarm as node {resp.get('node_id')} (class {args.node_class}, {kind}); "
               f"endpoint {endpoint or '(none -> schedule-only)'}; "
               f"swarm size {resp.get('swarm_size')}, reputation {resp.get('reputation')}")
