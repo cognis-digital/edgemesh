@@ -294,3 +294,6 @@ fleet:
 ## License
 Cognis Open Collaboration License (COCL) 1.0 — source-available; free for
 non-commercial use, commercial use requires a separate license. See [LICENSE](LICENSE).
+
+---
+📡 **[Interop map](INTEROP.md)** — how this repo composes with the rest of the Cognis suite (private-AI backbone, agent language + cognition, domain intelligence).
