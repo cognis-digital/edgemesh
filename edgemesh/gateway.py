@@ -16,8 +16,11 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from edgemesh.cluster import register_into
+from edgemesh.ledger import Ledger
+from edgemesh.protocol import Job, NodeInfo
 from edgemesh.registry import BackendRegistry
 from edgemesh.router import NoBackendError, Router
+from edgemesh.swarm import SwarmController
 
 
 def _catalog_as_openai(registry: BackendRegistry) -> dict:
@@ -28,9 +31,11 @@ def _catalog_as_openai(registry: BackendRegistry) -> dict:
     return {"object": "list", "data": data}
 
 
-def make_handler(registry: BackendRegistry) -> type[BaseHTTPRequestHandler]:
+def make_handler(registry: BackendRegistry,
+                 swarm: SwarmController | None = None) -> type[BaseHTTPRequestHandler]:
     router = Router(registry)
     nodes: dict[str, dict] = {}  # node name -> {address, backends}
+    swarm = swarm or SwarmController()
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -53,14 +58,47 @@ def make_handler(registry: BackendRegistry) -> type[BaseHTTPRequestHandler]:
                 self._send(200, {"status": "ok", "backends": registry.names()})
             elif self.path.rstrip("/") == "/cluster/nodes":
                 self._send(200, {"nodes": nodes})
+            elif self.path.rstrip("/") == "/swarm/nodes":
+                self._send(200, {"nodes": [n.to_dict() for n in swarm.list_nodes()]})
+            elif self.path.rstrip("/") == "/swarm/ledger":
+                self._send(200, swarm.ledger.to_dict())
             else:
                 self._send(404, {"error": {"message": f"not found: {self.path}"}})
 
+        def _body(self) -> dict:
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                return json.loads(self.rfile.read(length) or b"{}")
+            except json.JSONDecodeError:
+                return {}
+
         def do_POST(self) -> None:
-            if self.path.rstrip("/") == "/cluster/register":
+            route = self.path.rstrip("/")
+            if route == "/cluster/register":
                 self._register()
                 return
-            if self.path.rstrip("/") != "/v1/chat/completions":
+            if route == "/swarm/register":
+                node = swarm.register(NodeInfo.from_dict(self._body()))
+                self._send(200, {"ok": True, "node_id": node.node_id,
+                                 "reputation": node.reputation, "swarm_size": len(swarm.nodes)})
+                return
+            if route == "/swarm/submit":
+                b = self._body()
+                job = Job.new(b.get("model", ""), data_class=b.get("data_class", "public"),
+                              min_vram_mb=int(b.get("min_vram_mb", 0)), modality=b.get("modality", "text"),
+                              submitted_by=b.get("consumer", ""))
+                a = swarm.submit(job, price=float(b.get("price", 1.0)))
+                if not a:
+                    self._send(409, {"error": {"message": "no eligible node for this job"}})
+                else:
+                    self._send(200, {"job_id": a.job_id, "node_id": a.node_id, "price": a.price})
+                return
+            if route == "/swarm/complete":
+                b = self._body()
+                self._send(200, swarm.complete(b.get("job_id", ""), b.get("consumer", ""),
+                                                bool(b.get("success", True))))
+                return
+            if route != "/v1/chat/completions":
                 self._send(404, {"error": {"message": f"not found: {self.path}"}})
                 return
             length = int(self.headers.get("Content-Length", 0))
@@ -106,14 +144,18 @@ def make_handler(registry: BackendRegistry) -> type[BaseHTTPRequestHandler]:
     return Handler
 
 
-def serve(registry: BackendRegistry, host: str = "127.0.0.1", port: int = 8780) -> None:
-    """Run the gateway until interrupted."""
-    server = ThreadingHTTPServer((host, port), make_handler(registry))
-    print(f"edgemesh gateway on http://{host}:{port}  ({len(registry.names())} backend(s))")
+def serve(registry: BackendRegistry, host: str = "127.0.0.1", port: int = 8780,
+          swarm: SwarmController | None = None) -> None:
+    """Run the gateway + swarm control plane until interrupted."""
+    swarm = swarm or SwarmController(Ledger.load())
+    server = ThreadingHTTPServer((host, port), make_handler(registry, swarm))
+    print(f"edgemesh gateway + swarm control plane on http://{host}:{port}  "
+          f"({len(registry.names())} backend(s))")
     try:
         server.serve_forever()
     except KeyboardInterrupt:  # pragma: no cover
         server.shutdown()
+        swarm.ledger.save()
 
 
 __all__ = ["serve", "make_handler"]

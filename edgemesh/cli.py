@@ -27,11 +27,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.request
 
 from edgemesh import __version__, catalog, hardware, manager, menu, wizard
 from edgemesh.backends import Backend, probe
 from edgemesh.cluster import join
 from edgemesh.gateway import serve
+from edgemesh.profile import build_node_info
+from edgemesh.protocol import dumps
 from edgemesh.registry import DEFAULT_CONFIG, BackendRegistry
 
 
@@ -81,6 +84,14 @@ def main(argv: list[str] | None = None) -> int:
     p_join = sub.add_parser("join", help="join this device to a remote cluster")
     p_join.add_argument("coordinator_url")
     p_join.add_argument("--name", default=None); p_join.add_argument("--advertise", default=None)
+
+    p_node = sub.add_parser("node", help="join this device to a swarm as a compute node")
+    p_node.add_argument("coordinator_url")
+    p_node.add_argument("--class", dest="node_class", default="C", choices=["A", "B", "C"])
+    p_node.add_argument("--name", default=None)
+
+    p_swarm = sub.add_parser("swarm", help="show the swarm control plane (nodes + ledger)")
+    p_swarm.add_argument("--coordinator", default="http://127.0.0.1:8780")
 
     args = parser.parse_args(argv)
     registry = BackendRegistry.load(args.config)
@@ -162,6 +173,40 @@ def main(argv: list[str] | None = None) -> int:
             print(f"join failed: {exc}", file=sys.stderr); return 1
         print(f"joined as {resp.get('node')}: added {len(resp.get('added', []))} backend(s); "
               f"cluster catalog now {resp.get('catalog_size')} model(s)")
+        return 0
+
+    if args.command == "node":
+        info = build_node_info(args.name, args.node_class)
+        req = urllib.request.Request(
+            args.coordinator_url.rstrip("/") + "/swarm/register",
+            data=dumps(info.to_dict()), headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                resp = json.loads(r.read())
+        except Exception as exc:
+            print(f"swarm join failed: {exc}", file=sys.stderr); return 1
+        p = info.profile
+        print(f"joined swarm as node {resp.get('node_id')} (class {args.node_class}, "
+              f"{p.accelerator}, {(p.usable_vram_mb() or 0)//1024}GB usable); "
+              f"swarm size {resp.get('swarm_size')}, reputation {resp.get('reputation')}")
+        return 0
+
+    if args.command == "swarm":
+        base = args.coordinator.rstrip("/")
+        try:
+            with urllib.request.urlopen(base + "/swarm/nodes", timeout=10) as r:
+                nodes = json.loads(r.read()).get("nodes", [])
+            with urllib.request.urlopen(base + "/swarm/ledger", timeout=10) as r:
+                led = json.loads(r.read())
+        except Exception as exc:
+            print(f"could not reach coordinator at {base}: {exc}", file=sys.stderr); return 1
+        print(f"swarm: {len(nodes)} node(s)")
+        for n in nodes:
+            p = n.get("profile", {})
+            print(f"  {n['node_id']}  class {n['node_class']}  {p.get('accelerator', '?'):4s}  "
+                  f"{(p.get('vram_mb') or 0)//1024}GB vram  rep {round(n.get('reputation', 1.0), 2)}")
+        if led.get("credits"):
+            print(f"credits: {led['credits']}")
         return 0
 
     if args.command == "serve":  # pragma: no cover
