@@ -1,0 +1,10 @@
+apiVersion: v2
+name: edgemesh
+description: Sovereign, OpenAI-compatible AI mesh + compute swarm coordinator
+type: application
+version: 0.1.0
+appVersion: "0.11.0"
+home: https://github.com/cognis-digital/edgemesh
+sources:
+  - https://github.com/cognis-digital/edgemesh
+keywords: [ai, inference, gateway, openai-compatible, edge, swarm, on-prem, sovereign]

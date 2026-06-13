@@ -3,6 +3,20 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.12.0] — 2026-06-13
+
+The "observability + Helm" release — what an ops/platform team needs to run it.
+
+### Added
+- **Prometheus `/metrics`** (`metrics.py`): stdlib counter store + text exposition
+  format; per-route `edgemesh_requests_total` plus live gauges (`edgemesh_backends`,
+  `edgemesh_swarm_nodes`, `edgemesh_models_cataloged`, `edgemesh_ledger_credits_total`).
+  No client-library dependency.
+- **Helm chart** (`deploy/helm/edgemesh/`): Deployment + Service + health probes +
+  Prometheus scrape annotations; `values.yaml` for image/replicas/resources/extraArgs
+  (e.g. `--auth --audit`)/persistence. `helm install edgemesh deploy/helm/edgemesh`.
+- Tests for metric rendering + the `/metrics` endpoint (72 total).
+
 ## [0.11.0] — 2026-06-13
 
 The "sovereign / enterprise adoption" release — the controls a regulated or defense

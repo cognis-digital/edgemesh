@@ -1,0 +1,25 @@
+image:
+  repository: cognis-digital/edgemesh
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+port: 8780
+
+# Extra args to `edgemesh serve` (e.g. ["--auth","--audit"]).
+extraArgs: []
+
+service:
+  type: ClusterIP          # LoadBalancer / add an Ingress to expose externally
+
+resources:
+  requests: { cpu: "100m", memory: "128Mi" }
+  limits: { cpu: "500m", memory: "512Mi" }
+
+# Scrape /metrics with the Prometheus annotation convention.
+metrics:
+  enabled: true
+
+persistence:
+  enabled: false           # set true + provide an existing PVC to persist registry/ledger
+  existingClaim: ""

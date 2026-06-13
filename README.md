@@ -269,7 +269,8 @@ and exo. Full matrix: [`docs/INTEROP.md`](docs/INTEROP.md).
 | **Onion relay** + **hardening** (padding · guards · jitter · cover traffic · signed directory) | ✅ built (`edgemesh[relay]`, `relay_dir.py`) |
 | **Min-hardware admission** + **rate limiting / abuse caps** | ✅ built (`limits.py`) |
 | **API-key access control** + **append-only audit log** | ✅ built (`auth.py`, `audit.py`) |
-| **Deploy anywhere** (installers · Docker · Compose · systemd · **K8s**) | ✅ built (`deploy/`) |
+| **Deploy anywhere** (installers · Docker · Compose · systemd · **K8s** · **Helm**) | ✅ built (`deploy/`) |
+| **Observability** — Prometheus `/metrics` | ✅ built (`metrics.py`) |
 | Sandboxed execution · distributed training | ⬜ roadmap |
 | Tradeable token / on-chain settlement | ⬜ out of scope (securities decision) |
 

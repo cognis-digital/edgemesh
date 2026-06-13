@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "edgemesh"
-version = "0.11.0"
+version = "0.12.0"
 description = "Cross-OS federated gateway unifying every OpenAI-compatible inference backend behind one model catalog and one /v1 endpoint"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -20,6 +20,7 @@ from edgemesh import limits
 from edgemesh.executor import (iter_chunks, metered_stream, open_stream, run_job,
                                scatter_gather, stream_job)
 from edgemesh.ledger import Ledger
+from edgemesh.metrics import Metrics
 from edgemesh.protocol import Job, NodeInfo
 from edgemesh.relay import RelayUnavailable, handle_forward, public_for
 from edgemesh.registry import BackendRegistry
@@ -36,13 +37,22 @@ def _catalog_as_openai(registry: BackendRegistry) -> dict:
 
 
 def make_handler(registry: BackendRegistry, swarm: SwarmController | None = None,
-                 relay_priv: str | None = None, keystore=None,
-                 audit=None) -> type[BaseHTTPRequestHandler]:
+                 relay_priv: str | None = None, keystore=None, audit=None,
+                 metrics=None) -> type[BaseHTTPRequestHandler]:
     router = Router(registry)
     nodes: dict[str, dict] = {}  # node name -> {address, backends}
     swarm = swarm or SwarmController()
     limiter = limits.RateLimiter()  # token-bucket per client IP
+    metrics = metrics if metrics is not None else Metrics()
     PROTECTED = ("/swarm/run", "/swarm/map", "/v1/chat/completions", "/relay/forward")
+
+    def _gauges() -> dict:
+        return {
+            "edgemesh_backends": float(len(registry.names())),
+            "edgemesh_swarm_nodes": float(len(swarm.nodes)),
+            "edgemesh_models_cataloged": float(len(registry.model_catalog())),
+            "edgemesh_ledger_credits_total": float(sum(swarm.ledger.credits.values())),
+        }
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -86,6 +96,13 @@ def make_handler(registry: BackendRegistry, swarm: SwarmController | None = None
                 self._send(200, {"nodes": [n.to_dict() for n in swarm.list_nodes()]})
             elif self.path.rstrip("/") == "/swarm/ledger":
                 self._send(200, swarm.ledger.to_dict())
+            elif self.path.rstrip("/") == "/metrics":
+                body = metrics.render(_gauges()).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             elif self.path.rstrip("/") == "/relay/info":
                 if not relay_priv:
                     self._send(404, {"error": {"message": "this node is not a relay"}})
@@ -104,6 +121,7 @@ def make_handler(registry: BackendRegistry, swarm: SwarmController | None = None
 
         def do_POST(self) -> None:
             route = self.path.rstrip("/")
+            metrics.inc("edgemesh_requests_total", {"route": route})
             if int(self.headers.get("Content-Length", 0)) > limits.MAX_BODY_BYTES:
                 self._send(413, {"error": {"message": "request body too large"}})
                 return
