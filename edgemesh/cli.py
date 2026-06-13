@@ -27,11 +27,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.error
 import urllib.request
 
 from edgemesh import __version__, catalog, hardware, manager, menu, wizard
 from edgemesh.backends import Backend, probe
-from edgemesh.cluster import join
+from edgemesh.cluster import join, local_ip
 from edgemesh.gateway import serve
 from edgemesh.profile import build_node_info
 from edgemesh.protocol import dumps
@@ -89,9 +90,17 @@ def main(argv: list[str] | None = None) -> int:
     p_node.add_argument("coordinator_url")
     p_node.add_argument("--class", dest="node_class", default="C", choices=["A", "B", "C"])
     p_node.add_argument("--name", default=None)
+    p_node.add_argument("--serve-url", default=None,
+                        help="this node's reachable OpenAI /v1 base (auto-discovered if omitted)")
 
     p_swarm = sub.add_parser("swarm", help="show the swarm control plane (nodes + ledger)")
     p_swarm.add_argument("--coordinator", default="http://127.0.0.1:8780")
+
+    p_run = sub.add_parser("run", help="run a distributed job on the swarm")
+    p_run.add_argument("prompt")
+    p_run.add_argument("--model", required=True)
+    p_run.add_argument("--coordinator", default="http://127.0.0.1:8780")
+    p_run.add_argument("--consumer", default="cli")
 
     args = parser.parse_args(argv)
     registry = BackendRegistry.load(args.config)
@@ -176,7 +185,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "node":
-        info = build_node_info(args.name, args.node_class)
+        endpoint = args.serve_url
+        if not endpoint:  # auto-discover a local backend to advertise
+            local = BackendRegistry(); local.discover_local()
+            if local.backends():
+                endpoint = (local.backends()[0].base_url
+                            .replace("127.0.0.1", local_ip()).replace("localhost", local_ip()))
+        info = build_node_info(args.name, args.node_class, endpoint or "")
         req = urllib.request.Request(
             args.coordinator_url.rstrip("/") + "/swarm/register",
             data=dumps(info.to_dict()), headers={"Content-Type": "application/json"}, method="POST")
@@ -188,7 +203,30 @@ def main(argv: list[str] | None = None) -> int:
         p = info.profile
         print(f"joined swarm as node {resp.get('node_id')} (class {args.node_class}, "
               f"{p.accelerator}, {(p.usable_vram_mb() or 0)//1024}GB usable); "
+              f"endpoint {endpoint or '(none -> schedule-only)'}; "
               f"swarm size {resp.get('swarm_size')}, reputation {resp.get('reputation')}")
+        return 0
+
+    if args.command == "run":
+        payload = {"model": args.model, "consumer": args.consumer,
+                   "messages": [{"role": "user", "content": args.prompt}]}
+        req = urllib.request.Request(args.coordinator.rstrip("/") + "/swarm/run",
+                                     data=json.dumps(payload).encode(),
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r:
+                res = json.loads(r.read())
+        except urllib.error.HTTPError as exc:
+            print(f"run failed: {json.loads(exc.read()).get('error')}", file=sys.stderr); return 1
+        except Exception as exc:
+            print(f"run failed: {exc}", file=sys.stderr); return 1
+        if not res.get("ok"):
+            print(f"run failed: {res.get('error')}", file=sys.stderr); return 1
+        try:
+            print(res["result"]["choices"][0]["message"]["content"])
+        except (KeyError, IndexError, TypeError):
+            print(json.dumps(res.get("result"), indent=2))
+        print(f"\n[node {res.get('node_id')} · paid {res.get('paid')} credits]", file=sys.stderr)
         return 0
 
     if args.command == "swarm":

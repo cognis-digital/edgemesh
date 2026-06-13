@@ -16,6 +16,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from edgemesh.cluster import register_into
+from edgemesh.executor import run_job, scatter_gather
 from edgemesh.ledger import Ledger
 from edgemesh.protocol import Job, NodeInfo
 from edgemesh.registry import BackendRegistry
@@ -97,6 +98,22 @@ def make_handler(registry: BackendRegistry,
                 b = self._body()
                 self._send(200, swarm.complete(b.get("job_id", ""), b.get("consumer", ""),
                                                 bool(b.get("success", True))))
+                return
+            if route == "/swarm/run":
+                b = self._body()
+                job = Job.new(b.get("model", ""), data_class=b.get("data_class", "public"),
+                              min_vram_mb=int(b.get("min_vram_mb", 0)), submitted_by=b.get("consumer", ""))
+                res = run_job(swarm, job, {"messages": b.get("messages", [])},
+                              b.get("consumer", ""), price=float(b.get("price", 1.0)))
+                self._send(200 if res.get("ok") else 409, res)
+                return
+            if route == "/swarm/map":
+                b = self._body()
+                res = scatter_gather(swarm, b.get("model", ""), b.get("prompts", []),
+                                     aggregate=b.get("aggregate", "all"),
+                                     data_class=b.get("data_class", "public"),
+                                     min_vram_mb=int(b.get("min_vram_mb", 0)))
+                self._send(200 if res.get("ok") else 409, res)
                 return
             if route != "/v1/chat/completions":
                 self._send(404, {"error": {"message": f"not found: {self.path}"}})
