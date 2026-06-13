@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from edgemesh.backends import Backend
-from edgemesh.executor import iter_chunks, stream_job
+from edgemesh.executor import StreamMeter, iter_chunks, metered_stream, stream_job
 from edgemesh.gateway import make_handler
 from edgemesh.protocol import CLASS_C, HardwareProfile, Job, NodeInfo
 from edgemesh.registry import BackendRegistry
@@ -49,17 +49,29 @@ def _node(nid, endpoint):
                                             ram_mb=32000, vram_mb=12000, gpu_name="GPU"))
 
 
-def test_stream_job_relays_and_settles(sse):
+def test_stream_meter_counts_deltas_and_prefers_usage():
+    m = StreamMeter()
+    m.feed(b'data: {"choices":[{"delta":{"content":"a"}}]}\n\n')
+    m.feed(b'data: {"choices":[{"delta":{"content":"b"}}]}\n\n')
+    assert m.tokens == 2                       # two content deltas
+    m.feed(b'data: {"choices":[{"delta":{}}],"usage":{"completion_tokens":42}}\n\n')
+    assert m.tokens == 42                       # explicit usage wins
+
+
+def test_stream_job_metered_settlement(sse):
     sc = SwarmController()
     sc.ledger.grant("buyer", 5)
     sc.register(_node("n1", sse))
     nid, resp, attempts = stream_job(sc, Job.new("m"),
-                                     {"messages": [{"role": "user", "content": "hi"}]},
-                                     "buyer", price=2.0)
+                                     {"messages": [{"role": "user", "content": "hi"}]}, "buyer")
     assert nid == "n1" and resp is not None
-    data = b"".join(iter_chunks(resp))
+    assert sc.ledger.balance("n1") == 0.0       # NOT settled on open
+
+    data = b"".join(metered_stream(resp, sc, nid, "buyer", price_per_token=1.0))
     assert b"Hel" in data and b"lo" in data and b"[DONE]" in data
+    # SSE_BODY has 2 content deltas -> 2 tokens * 1.0 credit each
     assert sc.ledger.balance("n1") == 2.0 and sc.ledger.balance("buyer") == 3.0
+    assert sc.ledger.rep("n1") > 1.0            # clean finish bumped reputation
 
 
 def test_gateway_v1_streaming_relay(sse):

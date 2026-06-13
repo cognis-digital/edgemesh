@@ -8,9 +8,12 @@ Directional, not a promise. Issues and PRs welcome.
   routes oversized models to a `--sharding` node; `scatter_gather` fans batches.
 - ✅ **Streaming responses** (SSE) through `/v1/chat/completions`, `/swarm/run` (0.6).
 - ✅ **Sharding-backend presets** — `edgemesh node --preset <exo|vllm-ray|…>` (0.6).
-- **mTLS + signed-profile attestation** between node and control plane (tokens ship today).
-- **Stream settlement on completion** (today credits settle on a successful stream
-  *open*; meter actual tokens streamed instead).
+- ✅ **mTLS** (0.7): mutual client-cert auth on the gateway (`serve --tls`).
+- ✅ **Token-metered settlement** (0.7): streams bill on tokens actually produced.
+- ✅ **Onion-style privacy relay** (0.7): layered-encryption multi-hop community relay.
+- **Signed-profile attestation**: nodes attest hardware profiles (mTLS identity ships today).
+- **Relay hardening toward real anonymity**: cover traffic, padding, per-hop delays,
+  guard relays, a published relay directory with consensus.
 - **Auto-spawn a preset**: optionally launch the sharding runtime from the preset's
   start hint, not just register an already-running one.
 - **Resource controls** (CPU/RAM/GPU/power caps) and **sandboxed** job execution on nodes.

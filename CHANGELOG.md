@@ -3,6 +3,48 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.8.0] — 2026-06-13
+
+The "minimum hardware + anti-abuse" release.
+
+### Added
+- **Minimum-hardware policy** (`limits.py`): a join floor (~2 GB RAM — relay/participant)
+  and an inference-capability gate (8 GB RAM for CPU/Apple-unified, ≥4 GB VRAM for a
+  discrete GPU). `/swarm/register` rejects below-floor nodes and reports
+  `inference_capable`, so under-spec devices can still relay but aren't handed jobs
+  they can't run.
+- **Abuse protections**: a thread-safe **token-bucket rate limiter** per client IP on
+  `/swarm/run`, `/swarm/map`, `/relay/forward`, `/v1/chat/completions`; a **1 MB request
+  body cap** (413); a **64-prompt cap** on scatter-gather; and a **6-hop cap** on relay
+  circuits (loop/DoS guard).
+- Tests for admission + the limiter (58 tests total).
+
+## [0.7.0] — 2026-06-13
+
+The "security + privacy" release: mutual TLS, token-metered billing, and an
+onion-style community relay.
+
+### Added
+- **Mutual TLS** (`security/mtls.py`): `server_context`/`client_context` (stdlib
+  `ssl`, `CERT_REQUIRED`), an openssl-based dev PKI generator, `edgemesh gen-certs`,
+  and `edgemesh serve --tls` — only client-cert-authenticated peers may connect.
+- **Token-metered stream settlement** (`executor.StreamMeter`, `metered_stream`):
+  streams now settle on **tokens actually produced** (explicit `usage` when present,
+  else content-delta count) instead of on open; settlement runs in `finally`, so a
+  client disconnect still bills for what was generated.
+- **Onion-style privacy relay** (`relay.py`, optional `edgemesh[relay]`): route a
+  request through a circuit of community relays with one X25519+AES-GCM encryption
+  layer per hop, so no single relay sees both ends. `edgemesh gen-relay-key`,
+  `edgemesh serve --relay-key`, gateway `/relay/info` + `/relay/forward`. Fails
+  closed without `cryptography` — never a fake/insecure fallback.
+- **Dense, Mermaid-rich README** (architecture, request lifecycle, onion circuit).
+- 55 tests total (mTLS handshake, token metering, 3-hop circuit delivery).
+
+### Honest scope
+The relay is real layered-encryption multi-hop routing, **not** Tor-grade anonymity
+(no traffic mixing / timing resistance / cover traffic / large anonymity set), and
+not for evading the law or relaying abuse. See DISCLAIMER.md.
+
 ## [0.6.0] — 2026-06-13
 
 The "streaming + presets" release.

@@ -22,6 +22,23 @@ today; LAN/mesh/other adapters are roadmap). Operating any licensed radio spectr
 is the operator's responsibility and must comply with applicable regulations;
 edgemesh ships no capability to do so.
 
+## Privacy relay (onion routing)
+
+The optional relay routes requests through multiple community relays with one
+encryption layer per hop, so a single relay cannot link the requester to the
+compute node. Be clear-eyed about what this is:
+
+- It **is** real layered encryption + multi-hop routing that defeats a single
+  curious/compromised relay.
+- It is **not** Tor-grade anonymity — there is no traffic mixing, timing-analysis
+  resistance, cover traffic, padding, or a large anonymity set. A global passive
+  adversary, or correlation across entry+exit, can still deanonymize.
+- It is for **privacy in a community compute network**. It is **not** for evading
+  law enforcement, hiding illegal activity, or relaying abuse. Relay operators are
+  responsible for their jurisdiction's rules; run a relay only if you accept that.
+- Encryption requires the `cryptography` package; without it the relay refuses to
+  operate (fails closed) rather than sending anything unprotected.
+
 ## Operation
 
 You are responsible for the security, lawfulness, and acceptable use of any swarm
