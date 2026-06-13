@@ -3,6 +3,28 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.3.0] — 2026-06-13
+
+The "swarm" release: a decentralized-compute control plane on top of the mesh —
+turn many devices into one orchestrated supercompute swarm.
+
+### Added
+- **Swarm control plane** (`swarm.py` + gateway `/swarm/*`): a node registry with
+  trust **classes A/B/C**, a **scheduler**, a **credits + reputation ledger**, and
+  **privacy-aware routing** (data sensitivity → minimum node class).
+- **`protocol.py`**: transport-agnostic wire types (`NodeInfo`, `Job`,
+  `Assignment`, hardware profile, trust classes, data-sensitivity levels) and
+  HMAC-signed, short-lived bearer tokens.
+- **`profile.py`**: node hardware profiler classifying the accelerator into
+  Apple MLX / NVIDIA CUDA / AMD ROCm / CPU-only.
+- **`scheduler.py`**: privacy gate → VRAM-fit filter → reputation/price auction.
+- **`ledger.py`**: compute-credits settlement + reputation (deliberately an
+  internal accounting unit, **not** a tradeable/crypto token — see DISCLAIMER).
+- **CLI**: `edgemesh node <coordinator>` (join as a compute node with a class) and
+  `edgemesh swarm` (view nodes + ledger). Gateway now runs the swarm control plane.
+- Tests for protocol/ledger/scheduler/swarm + an end-to-end `/swarm` round-trip
+  (36 tests total).
+
 ## [0.2.0] — 2026-06-13
 
 The "universal cluster" release: from a meshing gateway to a full local-AI

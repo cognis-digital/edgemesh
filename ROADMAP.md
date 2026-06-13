@@ -2,6 +2,15 @@
 
 Directional, not a promise. Issues and PRs welcome.
 
+## Swarm (0.3 shipped the core; next)
+- **Distributed inference execution**: the protocol carries jobs/assignments and
+  the scheduler places them; wire actual shard execution + result aggregation.
+- **mTLS + signed-profile attestation** between node and control plane (tokens ship today).
+- **Resource controls** (CPU/RAM/GPU/power caps) and **sandboxed** job execution on nodes.
+- **Pluggable transports**: LAN discovery, mesh, and off-internet adapters behind
+  the existing transport seam.
+- **Distributed training** pipelines (Class-A nodes) and a **marketplace** UI.
+
 ## Near-term (0.3.x)
 - **Streaming responses** (`stream: true`) proxied through the gateway (SSE).
 - **Health-aware routing**: skip backends failing `/healthz`; round-robin across

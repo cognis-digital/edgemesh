@@ -81,6 +81,40 @@ Each node discovers its local backends and registers them with the coordinator,
 whose single `/v1` catalog then spans the whole mesh. See
 [`deploy/README.md`](deploy/README.md) for Docker, systemd, and cloud.
 
+## Swarm: decentralized compute control plane
+
+Beyond meshing endpoints, edgemesh can orchestrate a **swarm** of devices into one
+compute network — trust tiers, scheduling, reputation, and a credits ledger.
+
+```bash
+# coordinator runs the gateway + swarm control plane
+edgemesh serve
+# any device joins as a compute node with a trust class (A=trusted, B=private, C=public)
+edgemesh node http://<coordinator-ip>:8780 --class C
+# see the swarm
+edgemesh swarm --coordinator http://<coordinator-ip>:8780
+```
+
+A job carries a data-sensitivity level; the **privacy engine** routes confidential
+work to Class-A nodes only, the **scheduler** filters by VRAM fit and runs a
+reputation/price **auction**, and the **ledger** settles compute credits and moves
+reputation on completion.
+
+### What's built vs. roadmap
+
+| Architecture (NexusCompute) | edgemesh status |
+|---|---|
+| API gateway (OpenAI `/v1`) · model catalog | ✅ built |
+| Node registry · trust classes A/B/C | ✅ built (`swarm.py`) |
+| Hardware profiler (MLX/CUDA/ROCm/CPU) | ✅ built (`profile.py`) |
+| Scheduler · privacy routing · auction | ✅ built (`scheduler.py`) |
+| Credits + reputation ledger | ✅ built (`ledger.py`) — *accounting unit, not a token* |
+| Signed short-lived tokens | ✅ built (`protocol.py`); mTLS = roadmap |
+| Distributed inference / model sharding | 🟡 protocol + assignment in place; execution = roadmap |
+| Resource controls · sandboxing · distributed training | ⬜ roadmap |
+| Tradeable token / on-chain marketplace settlement | ⬜ out of scope (securities decision) — see [DISCLAIMER.md](DISCLAIMER.md) |
+| Pluggable transports (mesh / LoRa / off-internet) | ⬜ seam designed; adapters = roadmap |
+
 ## As a library
 
 ```python
