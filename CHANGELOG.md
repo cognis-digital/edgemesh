@@ -3,6 +3,20 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.9.0] — 2026-06-13
+
+The "comprehensive setup" release.
+
+### Added
+- **Guided multi-step setup wizard** (`edgemesh setup`, rewritten): role selection
+  (all-in-one / coordinator / node / relay), a **hardware check against the minimum
+  policy** (below-floor / relay-only / inference), backend discovery + Cognis fleet,
+  model fit + optional pull, an mTLS offer, a privacy-relay offer, a sharding-preset
+  suggestion for under-spec devices, an abuse-limits summary, and **tailored
+  next-step commands** for the chosen role.
+- Decision logic factored into pure, tested helpers (`hardware_verdict`, `next_steps`);
+  60 tests total.
+
 ## [0.8.0] — 2026-06-13
 
 The "minimum hardware + anti-abuse" release.
