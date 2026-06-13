@@ -1,23 +1,48 @@
 """edgemesh CLI.
 
+  Connect
     edgemesh discover [--host H] [--save]   probe local ports, show/register backends
     edgemesh add <name> <base_url> [--save] register a backend manually
-    edgemesh models                         show the aggregated model catalog
+    edgemesh fleet [--save]                 register the Cognis fleet (8772-8774, 11434)
+  Inspect
+    edgemesh models                         aggregated model catalog across the cluster
     edgemesh backends                       list registered backends
-    edgemesh serve [--host H] [--port P]    run the OpenAI-compatible gateway
+    edgemesh hardware                       detect CPU/RAM/GPU and the model-fit budget
+    edgemesh catalog [--all] [--uncensored] curated models that fit this machine
+  Models
+    edgemesh pull <model-id> [--dry-run]    download a catalog model with the right tool
+  Cluster & serve
+    edgemesh serve [--host H] [--port P]    run the OpenAI-compatible gateway/coordinator
+    edgemesh join <coordinator-url>         make THIS device a node of a remote cluster
+  Experience
+    edgemesh setup                          guided first-run setup wizard
+    edgemesh menu                           interactive numbered menu
+    edgemesh version                        print version
 
-Config defaults to ~/.edgemesh/config.json (home-resolved, so it works from any
-directory and on any OS); override with --config.
+Config defaults to ~/.edgemesh/config.json (home-resolved; works on any OS).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
+from edgemesh import __version__, catalog, hardware, manager, menu, wizard
 from edgemesh.backends import Backend, probe
+from edgemesh.cluster import join
 from edgemesh.gateway import serve
 from edgemesh.registry import DEFAULT_CONFIG, BackendRegistry
+
+
+def _register_fleet(registry: BackendRegistry) -> list[str]:
+    added = []
+    for name, url in wizard.COGNIS_FLEET.items():
+        models = probe(url, timeout=2.0)
+        if models is not None:
+            registry.add(Backend(name=name, base_url=url, models=models))
+            added.append(name)
+    return added
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,63 +52,120 @@ def main(argv: list[str] | None = None) -> int:
 
     p_disc = sub.add_parser("discover", help="probe local ports for backends")
     p_disc.add_argument("--host", default="127.0.0.1")
-    p_disc.add_argument("--save", action="store_true", help="persist discovered backends to config")
+    p_disc.add_argument("--save", action="store_true")
 
     p_add = sub.add_parser("add", help="register a backend manually")
-    p_add.add_argument("name")
-    p_add.add_argument("base_url")
+    p_add.add_argument("name"); p_add.add_argument("base_url")
     p_add.add_argument("--save", action="store_true")
+
+    p_fleet = sub.add_parser("fleet", help="register the Cognis fleet")
+    p_fleet.add_argument("--save", action="store_true")
 
     sub.add_parser("models", help="show aggregated model catalog")
     sub.add_parser("backends", help="list registered backends")
+    sub.add_parser("hardware", help="detect hardware + fit budget")
+    sub.add_parser("version", help="print version")
+    sub.add_parser("setup", help="guided setup wizard")
+    sub.add_parser("menu", help="interactive numbered menu")
 
-    p_serve = sub.add_parser("serve", help="run the gateway")
-    p_serve.add_argument("--host", default="127.0.0.1")
-    p_serve.add_argument("--port", type=int, default=8780)
+    p_cat = sub.add_parser("catalog", help="curated models that fit this machine")
+    p_cat.add_argument("--all", action="store_true", help="ignore the VRAM fit filter")
+    p_cat.add_argument("--no-uncensored", action="store_true", help="hide uncensored models")
+
+    p_pull = sub.add_parser("pull", help="download a catalog model")
+    p_pull.add_argument("model_id"); p_pull.add_argument("--dry-run", action="store_true")
+
+    p_serve = sub.add_parser("serve", help="run the gateway / cluster coordinator")
+    p_serve.add_argument("--host", default="127.0.0.1"); p_serve.add_argument("--port", type=int, default=8780)
+
+    p_join = sub.add_parser("join", help="join this device to a remote cluster")
+    p_join.add_argument("coordinator_url")
+    p_join.add_argument("--name", default=None); p_join.add_argument("--advertise", default=None)
 
     args = parser.parse_args(argv)
     registry = BackendRegistry.load(args.config)
 
     if args.command == "discover":
-        registry_local = BackendRegistry()
-        added = registry_local.discover_local(host=args.host)
+        local = BackendRegistry(); added = local.discover_local(host=args.host)
+        for b in local.backends():
+            print(f"{b.name}\t{b.base_url}\t{len(b.models)} model(s)")
         if not added:
             print(f"no backends found on {args.host}", file=sys.stderr)
-        for backend in registry_local.backends():
-            print(f"{backend.name}\t{backend.base_url}\t{len(backend.models)} model(s)")
-        if args.save:
-            for backend in registry_local.backends():
-                registry.add(backend)
-            registry.save(args.config)
-            print(f"saved {len(added)} backend(s) to {args.config}")
+        if args.save and added:
+            for b in local.backends():
+                registry.add(b)
+            registry.save(args.config); print(f"saved {len(added)} backend(s) to {args.config}")
         return 0 if added else 1
 
     if args.command == "add":
         models = probe(args.base_url) or []
-        backend = Backend(name=args.name, base_url=args.base_url, models=models)
-        registry.add(backend)
-        print(f"added {backend.name} ({backend.base_url}) with {len(models)} model(s)")
+        registry.add(Backend(name=args.name, base_url=args.base_url, models=models))
+        print(f"added {args.name} ({args.base_url}) with {len(models)} model(s)")
         if args.save:
-            registry.save(args.config)
-            print(f"saved to {args.config}")
+            registry.save(args.config); print(f"saved to {args.config}")
         return 0
 
+    if args.command == "fleet":
+        added = _register_fleet(registry)
+        print(f"registered: {', '.join(added) if added else '(fleet not running)'}")
+        if args.save and added:
+            registry.save(args.config); print(f"saved to {args.config}")
+        return 0 if added else 1
+
     if args.command == "models":
-        catalog = registry.model_catalog()
-        if not catalog:
-            print("(no models; run 'edgemesh discover --save' or 'edgemesh add')")
-        for model in sorted(catalog):
-            print(f"{model}\t{', '.join(catalog[model])}")
+        cat = registry.model_catalog()
+        if not cat:
+            print("(no models; run 'edgemesh discover --save', 'edgemesh fleet --save', or 'edgemesh add')")
+        for model in sorted(cat):
+            print(f"{model}\t{', '.join(cat[model])}")
         return 0
 
     if args.command == "backends":
-        for backend in registry.backends():
-            print(f"{backend.name}\t{backend.base_url}\t{len(backend.models)} model(s)")
+        for b in registry.backends():
+            print(f"{b.name}\t{b.base_url}\t{len(b.models)} model(s)")
+        return 0
+
+    if args.command == "hardware":
+        hw = hardware.detect()
+        print(json.dumps(hw.to_dict(), indent=2))
+        print(f"usable model budget: ~{(hardware.usable_vram_mb(hw) or 0)//1024} GB", file=sys.stderr)
+        return 0
+
+    if args.command == "catalog":
+        vram = None if args.all else hardware.usable_vram_mb()
+        for c in catalog.fit(vram, include_uncensored=not args.no_uncensored):
+            u = "[uncensored]" if c.uncensored else ""
+            print(f"{c.id}\t~{c.approx_vram_mb//1024}GB\t{c.modality}\t{c.pull}\t{u}")
+        return 0
+
+    if args.command == "pull":
+        card = catalog.by_id(args.model_id)
+        if not card:
+            print(f"unknown model id {args.model_id!r}; see 'edgemesh catalog --all'", file=sys.stderr)
+            return 1
+        ok, msg = manager.pull(card, dry_run=args.dry_run)
+        print(msg); return 0 if ok else 1
+
+    if args.command == "version":
+        print(__version__); return 0
+
+    if args.command == "setup":  # pragma: no cover - interactive
+        return wizard.run(args.config)
+
+    if args.command == "menu":  # pragma: no cover - interactive
+        return menu.run(args.config)
+
+    if args.command == "join":
+        try:
+            resp = join(args.coordinator_url, node_name=args.name, advertise_host=args.advertise)
+        except Exception as exc:
+            print(f"join failed: {exc}", file=sys.stderr); return 1
+        print(f"joined as {resp.get('node')}: added {len(resp.get('added', []))} backend(s); "
+              f"cluster catalog now {resp.get('catalog_size')} model(s)")
         return 0
 
     if args.command == "serve":  # pragma: no cover
-        serve(registry, host=args.host, port=args.port)
-        return 0
+        serve(registry, host=args.host, port=args.port); return 0
 
     return 0  # pragma: no cover
 

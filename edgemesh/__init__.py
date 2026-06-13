@@ -6,7 +6,7 @@ from edgemesh.backends import Backend, discover, parse_models, probe
 from edgemesh.registry import BackendRegistry
 from edgemesh.router import NoBackendError, Router
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "Backend",
