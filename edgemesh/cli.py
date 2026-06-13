@@ -32,7 +32,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from edgemesh import __version__, catalog, hardware, manager, menu, presets, relay, security, wizard
+from edgemesh import (__version__, audit as audit_mod, catalog, hardware, manager, menu,
+                      presets, relay, security, wizard)
+from edgemesh.auth import KeyStore
 from edgemesh.backends import Backend, probe
 from edgemesh.cluster import join, local_ip
 from edgemesh.gateway import serve
@@ -88,6 +90,12 @@ def main(argv: list[str] | None = None) -> int:
                          help="dir holding ca.crt + server.crt/key (see 'edgemesh gen-certs')")
     p_serve.add_argument("--relay-key", default=None,
                          help="run as an onion relay using this private-key file (see 'edgemesh gen-relay-key')")
+    p_serve.add_argument("--auth", action="store_true", help="require an API key (see 'edgemesh key add')")
+    p_serve.add_argument("--audit", action="store_true", help="write an append-only audit log")
+
+    p_key = sub.add_parser("key", help="manage API keys for --auth")
+    p_key.add_argument("action", choices=["add", "list"])
+    p_key.add_argument("name", nargs="?", default="default")
 
     p_rk = sub.add_parser("gen-relay-key", help="generate an onion-relay identity keypair")
     p_rk.add_argument("--out", default=str(Path.home() / ".edgemesh" / "relay.key"))
@@ -312,6 +320,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nrun as a relay:  edgemesh serve --relay-key {args.out}")
         return 0
 
+    if args.command == "key":
+        ks = KeyStore.load()
+        if args.action == "add":
+            plaintext = ks.add(args.name)
+            ks.save()
+            print(f"created key for '{args.name}':\n  {plaintext}")
+            print("  store it now — only the hash is kept, it won't be shown again.")
+        else:
+            for rec in ks.keys.values():
+                print(f"  {rec['name']:20s} scopes={','.join(rec.get('scopes', []))}")
+            if not ks.keys:
+                print("  (no keys; 'edgemesh key add <name>')")
+        return 0
+
     if args.command == "serve":  # pragma: no cover
         tls = None
         if args.tls:
@@ -323,7 +345,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.relay_key:
             with open(args.relay_key, encoding="utf-8") as fh:
                 relay_priv = fh.read().strip()
-        serve(registry, host=args.host, port=args.port, tls=tls, relay_priv=relay_priv); return 0
+        keystore = KeyStore.load() if args.auth else None
+        audit = audit_mod.AuditLog() if args.audit else None
+        serve(registry, host=args.host, port=args.port, tls=tls, relay_priv=relay_priv,
+              keystore=keystore, audit=audit); return 0
 
     return 0  # pragma: no cover
 

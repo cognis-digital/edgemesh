@@ -36,11 +36,13 @@ def _catalog_as_openai(registry: BackendRegistry) -> dict:
 
 
 def make_handler(registry: BackendRegistry, swarm: SwarmController | None = None,
-                 relay_priv: str | None = None) -> type[BaseHTTPRequestHandler]:
+                 relay_priv: str | None = None, keystore=None,
+                 audit=None) -> type[BaseHTTPRequestHandler]:
     router = Router(registry)
     nodes: dict[str, dict] = {}  # node name -> {address, backends}
     swarm = swarm or SwarmController()
     limiter = limits.RateLimiter()  # token-bucket per client IP
+    PROTECTED = ("/swarm/run", "/swarm/map", "/v1/chat/completions", "/relay/forward")
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -105,10 +107,22 @@ def make_handler(registry: BackendRegistry, swarm: SwarmController | None = None
             if int(self.headers.get("Content-Length", 0)) > limits.MAX_BODY_BYTES:
                 self._send(413, {"error": {"message": "request body too large"}})
                 return
-            if route in ("/swarm/run", "/swarm/map", "/relay/forward", "/v1/chat/completions") \
-                    and not limiter.allow(self.client_address[0]):
+            if route in PROTECTED and not limiter.allow(self.client_address[0]):
                 self._send(429, {"error": {"message": "rate limit exceeded; slow down"}})
                 return
+            # access control (opt-in: only enforced when a keystore has keys)
+            principal = "anonymous"
+            if route in PROTECTED and keystore is not None and keystore.enforced:
+                p = keystore.principal_from_header(self.headers.get("Authorization"))
+                if not p:
+                    if audit:
+                        audit.record(route, client=self.client_address[0], outcome="denied:auth")
+                    self._send(401, {"error": {"message": "missing or invalid API key"}})
+                    return
+                principal = p["name"]
+            if audit and route in PROTECTED:
+                audit.record(route, principal=principal, client=self.client_address[0],
+                             outcome="accepted")
             if route == "/cluster/register":
                 self._register()
                 return
@@ -234,7 +248,8 @@ def make_handler(registry: BackendRegistry, swarm: SwarmController | None = None
 
 
 def serve(registry: BackendRegistry, host: str = "127.0.0.1", port: int = 8780,
-          swarm: SwarmController | None = None, tls=None, relay_priv: str | None = None) -> None:
+          swarm: SwarmController | None = None, tls=None, relay_priv: str | None = None,
+          keystore=None, audit=None) -> None:
     """Run the gateway + swarm control plane until interrupted.
 
     `tls` is an optional ssl.SSLContext (see security.mtls.server_context) — when
@@ -242,7 +257,8 @@ def serve(registry: BackendRegistry, host: str = "127.0.0.1", port: int = 8780,
     connections.
     """
     swarm = swarm or SwarmController(Ledger.load())
-    server = ThreadingHTTPServer((host, port), make_handler(registry, swarm, relay_priv))
+    server = ThreadingHTTPServer((host, port),
+                                 make_handler(registry, swarm, relay_priv, keystore, audit))
     scheme = "http"
     if tls is not None:
         server.socket = tls.wrap_socket(server.socket, server_side=True)

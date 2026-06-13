@@ -268,12 +268,14 @@ and exo. Full matrix: [`docs/INTEROP.md`](docs/INTEROP.md).
 | **mTLS** (mutual client-cert auth) | ✅ built |
 | **Onion relay** + **hardening** (padding · guards · jitter · cover traffic · signed directory) | ✅ built (`edgemesh[relay]`, `relay_dir.py`) |
 | **Min-hardware admission** + **rate limiting / abuse caps** | ✅ built (`limits.py`) |
+| **API-key access control** + **append-only audit log** | ✅ built (`auth.py`, `audit.py`) |
 | **Deploy anywhere** (installers · Docker · Compose · systemd · **K8s**) | ✅ built (`deploy/`) |
 | Sandboxed execution · distributed training | ⬜ roadmap |
 | Tradeable token / on-chain settlement | ⬜ out of scope (securities decision) |
 
 ## Docs
-[`CHANGELOG.md`](CHANGELOG.md) · [`ROADMAP.md`](ROADMAP.md) · [`DISCLAIMER.md`](DISCLAIMER.md) · [`docs/INTEROP.md`](docs/INTEROP.md) · [`deploy/README.md`](deploy/README.md)
+**Adoption:** [`docs/USE_CASES.md`](docs/USE_CASES.md) · [`SECURITY.md`](SECURITY.md) · [`THREAT_MODEL.md`](THREAT_MODEL.md)
+**Reference:** [`CHANGELOG.md`](CHANGELOG.md) · [`ROADMAP.md`](ROADMAP.md) · [`DISCLAIMER.md`](DISCLAIMER.md) · [`docs/INTEROP.md`](docs/INTEROP.md) · [`deploy/README.md`](deploy/README.md)
 
 ## License
 Cognis Open Collaboration License (COCL) 1.0 — source-available; free for

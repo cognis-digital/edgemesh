@@ -3,6 +3,25 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.11.0] — 2026-06-13
+
+The "sovereign / enterprise adoption" release — the controls a regulated or defense
+buyer asks for first, so edgemesh can be a private, on-prem, OpenAI-compatible AI
+platform on hardware you own.
+
+### Added
+- **API-key access control** (`auth.py`): per-tenant keys, stored **hashed** (shown once),
+  `Bearer` auth on the privileged endpoints. Opt-in (`serve --auth`); open if no keys.
+  `edgemesh key add <name>` / `key list`.
+- **Append-only audit log** (`audit.py`): JSONL of privileged actions — who/what/when/
+  outcome — **metadata only, never prompt/response content**, so the trail isn't an
+  exfiltration surface. `serve --audit`; ship it to a SIEM/WORM store.
+- **Adoption docs**: `docs/USE_CASES.md` (the sovereign/air-gapped problem it solves +
+  buyer scenarios + a 5-minute on-prem pilot), `SECURITY.md` (model + hardening
+  checklist + reporting), `THREAT_MODEL.md` (assets, mitigations, explicit non-goals).
+- Tests for keystore (hashing/verify/roundtrip), audit (metadata-only), and the gateway
+  auth gate (401 without key, audited) — 70 tests total.
+
 ## [0.10.0] — 2026-06-13
 
 The "relay hardening + run-anywhere" release.
