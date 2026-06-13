@@ -93,7 +93,12 @@ edgemesh serve
 edgemesh node http://<coordinator-ip>:8780 --class C
 # see the swarm
 edgemesh swarm --coordinator http://<coordinator-ip>:8780
+# run a job on the swarm (scheduled to a node, executed, credits settled)
+edgemesh run "summarize this" --model llama3.1-8b --coordinator http://<coordinator-ip>:8780
 ```
+
+Batch / data-parallel work fans across nodes via `POST /swarm/map`
+(`{"model","prompts":[...],"aggregate":"first|concat|vote|all"}`).
 
 A job carries a data-sensitivity level; the **privacy engine** routes confidential
 work to Class-A nodes only, the **scheduler** filters by VRAM fit and runs a
@@ -110,7 +115,8 @@ reputation on completion.
 | Scheduler · privacy routing · auction | ✅ built (`scheduler.py`) |
 | Credits + reputation ledger | ✅ built (`ledger.py`) — *accounting unit, not a token* |
 | Signed short-lived tokens | ✅ built (`protocol.py`); mTLS = roadmap |
-| Distributed inference / model sharding | 🟡 protocol + assignment in place; execution = roadmap |
+| Distributed execution + result aggregation (mesh-level) | ✅ built (`executor.py`: `run_job`, scatter-gather) |
+| Tensor-level model sharding (one model across machines) | 🟡 delegated to a sharding backend (exo/Petals/vLLM+Ray); not reimplemented |
 | Resource controls · sandboxing · distributed training | ⬜ roadmap |
 | Tradeable token / on-chain marketplace settlement | ⬜ out of scope (securities decision) — see [DISCLAIMER.md](DISCLAIMER.md) |
 | Pluggable transports (mesh / LoRa / off-internet) | ⬜ seam designed; adapters = roadmap |

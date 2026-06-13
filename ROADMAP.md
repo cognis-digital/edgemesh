@@ -2,9 +2,12 @@
 
 Directional, not a promise. Issues and PRs welcome.
 
-## Swarm (0.3 shipped the core; next)
-- **Distributed inference execution**: the protocol carries jobs/assignments and
-  the scheduler places them; wire actual shard execution + result aggregation.
+## Swarm (0.3 control plane + 0.4 distributed execution shipped; next)
+- ✅ **Distributed execution + result aggregation** (0.4): `run_job` dispatches a
+  scheduled job to the assigned node's backend and settles; `scatter_gather` fans
+  batches across nodes. Next: streaming, retries/failover to the next-best node.
+- **Tensor-level model sharding**: integrate a sharding backend (exo/Petals/vLLM+Ray)
+  as a first-class node type so one oversized model runs across machines.
 - **mTLS + signed-profile attestation** between node and control plane (tokens ship today).
 - **Resource controls** (CPU/RAM/GPU/power caps) and **sandboxed** job execution on nodes.
 - **Pluggable transports**: LAN discovery, mesh, and off-internet adapters behind

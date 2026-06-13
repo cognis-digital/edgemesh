@@ -3,6 +3,31 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.4.0] — 2026-06-13
+
+The "distributed execution" release: the swarm now actually *runs* work, not just
+schedules it.
+
+### Added
+- **`executor.py`** — distributed execution + result aggregation over the mesh:
+  - `run_job`: schedule a job → forward the OpenAI request to the assigned node's
+    backend → return the result → settle credits + reputation. End-to-end.
+  - `scatter_gather`: fan a batch of prompts across eligible nodes concurrently and
+    aggregate (`first` | `concat` | `vote` | `all`). Genuine data-parallel inference.
+  - `needs_sharding`: detect a model that fits no single node and route to a
+    sharding-capable backend instead of faking pipeline parallelism.
+- Gateway **`/swarm/run`** (single distributed job) and **`/swarm/map`** (scatter-gather).
+- CLI: **`edgemesh run`** (run a distributed job) and `edgemesh node --serve-url`
+  (advertise this node's reachable `/v1` endpoint so it can execute work; auto-
+  discovered when omitted).
+- Tests against a mock OpenAI backend over a real socket (42 tests total).
+
+### Honest scope
+Tensor-level **model sharding** (one model split layer-by-layer across machines)
+is delegated to a sharding-capable backend (exo / Petals / vLLM+Ray / llama.cpp
+RPC) registered as a node — edgemesh routes to it; it does not reimplement
+pipeline parallelism. See README status table and ROADMAP.
+
 ## [0.3.0] — 2026-06-13
 
 The "swarm" release: a decentralized-compute control plane on top of the mesh —
