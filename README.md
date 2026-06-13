@@ -274,6 +274,19 @@ and exo. Full matrix: [`docs/INTEROP.md`](docs/INTEROP.md).
 | Sandboxed execution · distributed training | ⬜ roadmap |
 | Tradeable token / on-chain settlement | ⬜ out of scope (securities decision) |
 
+## Works with the Cognis suite
+
+edgemesh is the **private-AI backbone** the rest of the suite plugs into — point any
+tool's `--endpoint` / `OPENAI_BASE_URL` at an edgemesh gateway and it runs on your own
+fleet:
+
+- [`maritimeint`](https://github.com/cognis-digital/maritimeint) · [`humind`](https://github.com/cognis-digital/humind) — use edgemesh as the backend for their optional vision/reasoning add-ins
+- [`agentlex`](https://github.com/cognis-digital/agentlex) — agents exchange symbolic messages; edgemesh is the transport/model layer underneath
+- [`modelroute`](https://github.com/cognis-digital/modelroute) · [`uncensored-fleet`](https://github.com/cognis-digital/uncensored-fleet) · [`cognis-code`](https://github.com/cognis-digital/cognis-code) — backends edgemesh discovers and meshes
+- [`engram`](https://github.com/cognis-digital/engram) / [`hermes`](https://github.com/cognis-digital/hermes) — durable agent memory alongside the compute layer
+
+**280+ open security & OSINT tools →** [github.com/cognis-digital](https://github.com/cognis-digital)
+
 ## Docs
 **Adoption:** [`docs/USE_CASES.md`](docs/USE_CASES.md) · [`SECURITY.md`](SECURITY.md) · [`THREAT_MODEL.md`](THREAT_MODEL.md)
 **Reference:** [`CHANGELOG.md`](CHANGELOG.md) · [`ROADMAP.md`](ROADMAP.md) · [`DISCLAIMER.md`](DISCLAIMER.md) · [`docs/INTEROP.md`](docs/INTEROP.md) · [`deploy/README.md`](deploy/README.md)
