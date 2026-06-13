@@ -43,6 +43,23 @@ def call_backend(endpoint: str, payload: dict, timeout: float = 300.0) -> dict:
         return json.loads(resp.read().decode("utf-8", "replace"))
 
 
+def open_stream(endpoint: str, payload: dict, timeout: float = 300.0):
+    """Open a streaming chat request; returns the live response to relay + close."""
+    url = endpoint.rstrip("/") + "/v1/chat/completions"
+    req = urllib.request.Request(url, data=json.dumps({**payload, "stream": True}).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    return urllib.request.urlopen(req, timeout=timeout)
+
+
+def iter_chunks(resp, size: int = 1024):
+    """Yield raw bytes from a streaming response until EOF, then close it."""
+    try:
+        for chunk in iter(lambda: resp.read(size), b""):
+            yield chunk
+    finally:
+        resp.close()
+
+
 def content_of(resp: dict) -> str:
     try:
         return resp["choices"][0]["message"]["content"]
@@ -90,6 +107,35 @@ def run_job(swarm: SwarmController, job: Job, payload: dict, consumer: str,
                 "result": resp, "paid": paid, "reputation": rep, "attempts": attempts}
     return {"ok": False, "error": f"all {len(attempts)} candidate node(s) failed",
             "attempts": attempts}
+
+
+def stream_job(swarm: SwarmController, job: Job, payload: dict, consumer: str,
+               *, price: float = 1.0, timeout: float = 300.0, max_attempts: int = 3):
+    """Like run_job but for streaming: returns (node_id, live_response, attempts).
+
+    Settlement happens on a successful *open* (the node accepted and is producing
+    the stream); credits + reputation move then. Caller relays the response and
+    closes it (e.g. via `iter_chunks`). Returns (None, None, attempts) if all fail.
+    """
+    runnable = _runnable(list(swarm.nodes.values()))
+    order = ranked(job, runnable, swarm.ledger, price)
+    payload = {**payload, "model": job.model}
+    attempts: list[dict] = []
+    for node in order[:max_attempts]:
+        try:
+            resp = open_stream(node.endpoint, payload, timeout=timeout)
+        except Exception as exc:
+            rep = swarm.ledger.record_outcome(node.node_id, False)
+            if node.node_id in swarm.nodes:
+                swarm.nodes[node.node_id].reputation = rep
+            attempts.append({"node_id": node.node_id, "error": str(exc)})
+            continue
+        swarm.ledger.settle(consumer, node.node_id, price)
+        rep = swarm.ledger.record_outcome(node.node_id, True)
+        if node.node_id in swarm.nodes:
+            swarm.nodes[node.node_id].reputation = rep
+        return node.node_id, resp, attempts
+    return None, None, attempts
 
 
 def scatter_gather(swarm: SwarmController, model: str, prompts: list[str],

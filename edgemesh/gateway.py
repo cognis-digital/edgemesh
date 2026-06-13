@@ -16,7 +16,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from edgemesh.cluster import register_into
-from edgemesh.executor import run_job, scatter_gather
+from edgemesh.executor import iter_chunks, open_stream, run_job, scatter_gather, stream_job
 from edgemesh.ledger import Ledger
 from edgemesh.protocol import Job, NodeInfo
 from edgemesh.registry import BackendRegistry
@@ -48,6 +48,20 @@ def make_handler(registry: BackendRegistry,
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def _relay_stream(self, resp) -> None:
+            """Relay an upstream SSE stream to the client (framed by Connection: close)."""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            try:
+                for chunk in iter_chunks(resp):
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionError):  # client hung up
+                pass
 
         def log_message(self, *args: object) -> None:  # quiet by default
             pass
@@ -103,8 +117,17 @@ def make_handler(registry: BackendRegistry,
                 b = self._body()
                 job = Job.new(b.get("model", ""), data_class=b.get("data_class", "public"),
                               min_vram_mb=int(b.get("min_vram_mb", 0)), submitted_by=b.get("consumer", ""))
-                res = run_job(swarm, job, {"messages": b.get("messages", [])},
-                              b.get("consumer", ""), price=float(b.get("price", 1.0)))
+                payload = {"messages": b.get("messages", [])}
+                if b.get("stream"):
+                    nid, resp, attempts = stream_job(swarm, job, payload, b.get("consumer", ""),
+                                                     price=float(b.get("price", 1.0)))
+                    if resp is None:
+                        self._send(409, {"ok": False, "error": "no node could stream this job",
+                                         "attempts": attempts})
+                    else:
+                        self._relay_stream(resp)
+                    return
+                res = run_job(swarm, job, payload, b.get("consumer", ""), price=float(b.get("price", 1.0)))
                 self._send(200 if res.get("ok") else 409, res)
                 return
             if route == "/swarm/map":
@@ -132,6 +155,14 @@ def make_handler(registry: BackendRegistry,
                 self._send(404, {"error": {"message": str(exc)}})
                 return
             body["model"] = upstream_model
+            if body.get("stream"):  # relay the upstream SSE stream verbatim
+                try:
+                    resp = open_stream(backend.base_url, body, timeout=300)
+                except Exception as exc:
+                    self._send(502, {"error": {"message": f"backend {backend.name} failed: {exc}"}})
+                    return
+                self._relay_stream(resp)
+                return
             forward = json.dumps(body).encode("utf-8")
             req = urllib.request.Request(
                 backend.chat_url(), data=forward,
