@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "edgemesh"
-version = "0.6.0"
+version = "0.8.0"
 description = "Cross-OS federated gateway unifying every OpenAI-compatible inference backend behind one model catalog and one /v1 endpoint"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,7 +28,8 @@ Issues = "https://github.com/cognis-digital/edgemesh/issues"
 edgemesh = "edgemesh.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "cryptography>=42"]
+relay = ["cryptography>=42"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["edgemesh"]

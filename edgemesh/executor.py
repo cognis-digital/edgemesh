@@ -109,13 +109,53 @@ def run_job(swarm: SwarmController, job: Job, payload: dict, consumer: str,
             "attempts": attempts}
 
 
+class StreamMeter:
+    """Counts completion tokens as an OpenAI SSE stream flows past.
+
+    Prefers an explicit `usage.completion_tokens` (emitted by backends when
+    `stream_options.include_usage` is set); otherwise approximates by counting
+    content-bearing delta chunks (one delta ~= one token, the common case).
+    """
+
+    def __init__(self) -> None:
+        self._buf = b""
+        self._deltas = 0
+        self._explicit: int | None = None
+
+    def feed(self, chunk: bytes) -> None:
+        self._buf += chunk
+        while b"\n" in self._buf:
+            line, self._buf = self._buf.split(b"\n", 1)
+            line = line.strip()
+            if not line.startswith(b"data:"):
+                continue
+            data = line[5:].strip()
+            if data == b"[DONE]" or not data:
+                continue
+            try:
+                obj = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            usage = obj.get("usage") or {}
+            if isinstance(usage, dict) and usage.get("completion_tokens") is not None:
+                self._explicit = int(usage["completion_tokens"])
+            try:
+                if obj["choices"][0].get("delta", {}).get("content"):
+                    self._deltas += 1
+            except (KeyError, IndexError, TypeError):
+                pass
+
+    @property
+    def tokens(self) -> int:
+        return self._explicit if self._explicit is not None else self._deltas
+
+
 def stream_job(swarm: SwarmController, job: Job, payload: dict, consumer: str,
                *, price: float = 1.0, timeout: float = 300.0, max_attempts: int = 3):
-    """Like run_job but for streaming: returns (node_id, live_response, attempts).
+    """Open a streaming job with failover. Returns (node_id, live_response, attempts).
 
-    Settlement happens on a successful *open* (the node accepted and is producing
-    the stream); credits + reputation move then. Caller relays the response and
-    closes it (e.g. via `iter_chunks`). Returns (None, None, attempts) if all fail.
+    No settlement here — settlement is metered on the tokens actually streamed; the
+    caller wraps the response with `metered_stream` to charge + reward on completion.
     """
     runnable = _runnable(list(swarm.nodes.values()))
     order = ranked(job, runnable, swarm.ledger, price)
@@ -130,12 +170,31 @@ def stream_job(swarm: SwarmController, job: Job, payload: dict, consumer: str,
                 swarm.nodes[node.node_id].reputation = rep
             attempts.append({"node_id": node.node_id, "error": str(exc)})
             continue
-        swarm.ledger.settle(consumer, node.node_id, price)
-        rep = swarm.ledger.record_outcome(node.node_id, True)
-        if node.node_id in swarm.nodes:
-            swarm.nodes[node.node_id].reputation = rep
         return node.node_id, resp, attempts
     return None, None, attempts
+
+
+def metered_stream(resp, swarm: SwarmController, node_id: str, consumer: str,
+                   price_per_token: float, *, min_charge: float = 0.0):
+    """Relay generator: yield chunks, meter tokens, and settle on completion.
+
+    Charge = max(min_charge, tokens * price_per_token), moved consumer -> node;
+    reputation rises on a clean finish. Settlement runs in `finally`, so a client
+    disconnect still bills for what was produced.
+    """
+    meter = StreamMeter()
+    ok = False
+    try:
+        for chunk in iter_chunks(resp):
+            meter.feed(chunk)
+            yield chunk
+        ok = True
+    finally:
+        charge = max(min_charge, meter.tokens * price_per_token)
+        swarm.ledger.settle(consumer, node_id, charge)
+        rep = swarm.ledger.record_outcome(node_id, ok)
+        if node_id in swarm.nodes:
+            swarm.nodes[node_id].reputation = rep
 
 
 def scatter_gather(swarm: SwarmController, model: str, prompts: list[str],

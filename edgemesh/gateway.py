@@ -16,9 +16,12 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from edgemesh.cluster import register_into
-from edgemesh.executor import iter_chunks, open_stream, run_job, scatter_gather, stream_job
+from edgemesh import limits
+from edgemesh.executor import (iter_chunks, metered_stream, open_stream, run_job,
+                               scatter_gather, stream_job)
 from edgemesh.ledger import Ledger
 from edgemesh.protocol import Job, NodeInfo
+from edgemesh.relay import RelayUnavailable, handle_forward, public_for
 from edgemesh.registry import BackendRegistry
 from edgemesh.router import NoBackendError, Router
 from edgemesh.swarm import SwarmController
@@ -32,11 +35,12 @@ def _catalog_as_openai(registry: BackendRegistry) -> dict:
     return {"object": "list", "data": data}
 
 
-def make_handler(registry: BackendRegistry,
-                 swarm: SwarmController | None = None) -> type[BaseHTTPRequestHandler]:
+def make_handler(registry: BackendRegistry, swarm: SwarmController | None = None,
+                 relay_priv: str | None = None) -> type[BaseHTTPRequestHandler]:
     router = Router(registry)
     nodes: dict[str, dict] = {}  # node name -> {address, backends}
     swarm = swarm or SwarmController()
+    limiter = limits.RateLimiter()  # token-bucket per client IP
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -49,19 +53,22 @@ def make_handler(registry: BackendRegistry,
             self.end_headers()
             self.wfile.write(body)
 
-        def _relay_stream(self, resp) -> None:
-            """Relay an upstream SSE stream to the client (framed by Connection: close)."""
+        def _relay_chunks(self, chunk_iter) -> None:
+            """Relay an SSE chunk iterator to the client (framed by Connection: close)."""
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "close")
             self.end_headers()
             try:
-                for chunk in iter_chunks(resp):
+                for chunk in chunk_iter:
                     self.wfile.write(chunk)
                     self.wfile.flush()
             except (BrokenPipeError, ConnectionError):  # client hung up
                 pass
+
+        def _relay_stream(self, resp) -> None:
+            self._relay_chunks(iter_chunks(resp))
 
         def log_message(self, *args: object) -> None:  # quiet by default
             pass
@@ -77,6 +84,12 @@ def make_handler(registry: BackendRegistry,
                 self._send(200, {"nodes": [n.to_dict() for n in swarm.list_nodes()]})
             elif self.path.rstrip("/") == "/swarm/ledger":
                 self._send(200, swarm.ledger.to_dict())
+            elif self.path.rstrip("/") == "/relay/info":
+                if not relay_priv:
+                    self._send(404, {"error": {"message": "this node is not a relay"}})
+                else:
+                    pub = public_for(relay_priv)
+                    self._send(200, {"relay_id": pub[:12], "public_key": pub})
             else:
                 self._send(404, {"error": {"message": f"not found: {self.path}"}})
 
@@ -89,13 +102,26 @@ def make_handler(registry: BackendRegistry,
 
         def do_POST(self) -> None:
             route = self.path.rstrip("/")
+            if int(self.headers.get("Content-Length", 0)) > limits.MAX_BODY_BYTES:
+                self._send(413, {"error": {"message": "request body too large"}})
+                return
+            if route in ("/swarm/run", "/swarm/map", "/relay/forward", "/v1/chat/completions") \
+                    and not limiter.allow(self.client_address[0]):
+                self._send(429, {"error": {"message": "rate limit exceeded; slow down"}})
+                return
             if route == "/cluster/register":
                 self._register()
                 return
             if route == "/swarm/register":
-                node = swarm.register(NodeInfo.from_dict(self._body()))
-                self._send(200, {"ok": True, "node_id": node.node_id,
-                                 "reputation": node.reputation, "swarm_size": len(swarm.nodes)})
+                node = NodeInfo.from_dict(self._body())
+                if not limits.meets_floor(node.profile):
+                    self._send(400, {"ok": False, "error": "node is below the minimum "
+                                     f"hardware floor ({limits.MIN_RAM_MB} MB RAM)"})
+                    return
+                node = swarm.register(node)
+                self._send(200, {"ok": True, "node_id": node.node_id, "reputation": node.reputation,
+                                 "swarm_size": len(swarm.nodes),
+                                 "inference_capable": limits.is_inference_capable(node.profile)})
                 return
             if route == "/swarm/submit":
                 b = self._body()
@@ -124,19 +150,34 @@ def make_handler(registry: BackendRegistry,
                     if resp is None:
                         self._send(409, {"ok": False, "error": "no node could stream this job",
                                          "attempts": attempts})
-                    else:
-                        self._relay_stream(resp)
+                    else:  # meter tokens as they stream; settle on completion
+                        ppt = float(b.get("price_per_token", 0.001))
+                        self._relay_chunks(metered_stream(resp, swarm, nid, b.get("consumer", ""), ppt))
                     return
                 res = run_job(swarm, job, payload, b.get("consumer", ""), price=float(b.get("price", 1.0)))
                 self._send(200 if res.get("ok") else 409, res)
                 return
             if route == "/swarm/map":
                 b = self._body()
-                res = scatter_gather(swarm, b.get("model", ""), b.get("prompts", []),
+                res = scatter_gather(swarm, b.get("model", ""),
+                                     b.get("prompts", [])[:limits.MAX_MAP_PROMPTS],
                                      aggregate=b.get("aggregate", "all"),
                                      data_class=b.get("data_class", "public"),
                                      min_vram_mb=int(b.get("min_vram_mb", 0)))
                 self._send(200 if res.get("ok") else 409, res)
+                return
+            if route == "/relay/forward":
+                if not relay_priv:
+                    self._send(404, {"error": {"message": "this node is not a relay"}})
+                    return
+                try:
+                    result = handle_forward(relay_priv, self._body().get("blob", ""))
+                except RelayUnavailable as exc:
+                    self._send(501, {"error": {"message": str(exc)}})
+                except Exception as exc:
+                    self._send(502, {"error": {"message": f"relay forward failed: {exc}"}})
+                else:
+                    self._send(200, result)
                 return
             if route != "/v1/chat/completions":
                 self._send(404, {"error": {"message": f"not found: {self.path}"}})
@@ -193,11 +234,20 @@ def make_handler(registry: BackendRegistry,
 
 
 def serve(registry: BackendRegistry, host: str = "127.0.0.1", port: int = 8780,
-          swarm: SwarmController | None = None) -> None:
-    """Run the gateway + swarm control plane until interrupted."""
+          swarm: SwarmController | None = None, tls=None, relay_priv: str | None = None) -> None:
+    """Run the gateway + swarm control plane until interrupted.
+
+    `tls` is an optional ssl.SSLContext (see security.mtls.server_context) — when
+    given, the gateway speaks mutual TLS and only accepts client-cert-authenticated
+    connections.
+    """
     swarm = swarm or SwarmController(Ledger.load())
-    server = ThreadingHTTPServer((host, port), make_handler(registry, swarm))
-    print(f"edgemesh gateway + swarm control plane on http://{host}:{port}  "
+    server = ThreadingHTTPServer((host, port), make_handler(registry, swarm, relay_priv))
+    scheme = "http"
+    if tls is not None:
+        server.socket = tls.wrap_socket(server.socket, server_side=True)
+        scheme = "https (mTLS)"
+    print(f"edgemesh gateway + swarm control plane on {scheme}://{host}:{port}  "
           f"({len(registry.names())} backend(s))")
     try:
         server.serve_forever()

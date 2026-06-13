@@ -26,11 +26,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 
-from edgemesh import __version__, catalog, hardware, manager, menu, presets, wizard
+from edgemesh import __version__, catalog, hardware, manager, menu, presets, relay, security, wizard
 from edgemesh.backends import Backend, probe
 from edgemesh.cluster import join, local_ip
 from edgemesh.gateway import serve
@@ -81,6 +83,18 @@ def main(argv: list[str] | None = None) -> int:
 
     p_serve = sub.add_parser("serve", help="run the gateway / cluster coordinator")
     p_serve.add_argument("--host", default="127.0.0.1"); p_serve.add_argument("--port", type=int, default=8780)
+    p_serve.add_argument("--tls", action="store_true", help="require mutual TLS (client certs)")
+    p_serve.add_argument("--pki-dir", default=str(Path.home() / ".edgemesh" / "pki"),
+                         help="dir holding ca.crt + server.crt/key (see 'edgemesh gen-certs')")
+    p_serve.add_argument("--relay-key", default=None,
+                         help="run as an onion relay using this private-key file (see 'edgemesh gen-relay-key')")
+
+    p_rk = sub.add_parser("gen-relay-key", help="generate an onion-relay identity keypair")
+    p_rk.add_argument("--out", default=str(Path.home() / ".edgemesh" / "relay.key"))
+
+    p_pki = sub.add_parser("gen-certs", help="generate a self-signed dev PKI (CA + server + client)")
+    p_pki.add_argument("--dir", default=str(Path.home() / ".edgemesh" / "pki"))
+    p_pki.add_argument("--cn", default="edgemesh")
 
     p_join = sub.add_parser("join", help="join this device to a remote cluster")
     p_join.add_argument("coordinator_url")
@@ -269,8 +283,47 @@ def main(argv: list[str] | None = None) -> int:
             print(f"credits: {led['credits']}")
         return 0
 
+    if args.command == "gen-certs":
+        try:
+            paths = security.gen_dev_pki(args.dir, cn=args.cn)
+        except Exception as exc:
+            print(f"cert generation failed: {exc}", file=sys.stderr); return 1
+        print("generated dev PKI:")
+        for k, v in paths.items():
+            print(f"  {k:12s} {v}")
+        print(f"\nserve with mTLS:  edgemesh serve --tls --pki-dir {args.dir}")
+        return 0
+
+    if args.command == "gen-relay-key":
+        try:
+            priv, pub = relay.gen_keypair()
+        except relay.RelayUnavailable as exc:
+            print(str(exc), file=sys.stderr); return 1
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        with open(args.out, "w", encoding="utf-8") as fh:
+            fh.write(priv)
+        try:
+            os.chmod(args.out, 0o600)
+        except OSError:
+            pass
+        print(f"relay identity written to {args.out}")
+        print(f"  relay_id:   {pub[:12]}")
+        print(f"  public_key: {pub}")
+        print(f"\nrun as a relay:  edgemesh serve --relay-key {args.out}")
+        return 0
+
     if args.command == "serve":  # pragma: no cover
-        serve(registry, host=args.host, port=args.port); return 0
+        tls = None
+        if args.tls:
+            d = args.pki_dir
+            tls = security.server_context(os.path.join(d, "server.crt"),
+                                          os.path.join(d, "server.key"),
+                                          os.path.join(d, "ca.crt"))
+        relay_priv = None
+        if args.relay_key:
+            with open(args.relay_key, encoding="utf-8") as fh:
+                relay_priv = fh.read().strip()
+        serve(registry, host=args.host, port=args.port, tls=tls, relay_priv=relay_priv); return 0
 
     return 0  # pragma: no cover
 
