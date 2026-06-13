@@ -266,8 +266,9 @@ and exo. Full matrix: [`docs/INTEROP.md`](docs/INTEROP.md).
 | Credits + reputation ledger · **token-metered settlement** | ✅ built |
 | Run a model too big for one device (sharding routing + presets) | ✅ built — tensor split is the backend's job |
 | **mTLS** (mutual client-cert auth) | ✅ built |
-| **Onion-style privacy relay** (layered encryption, multi-hop) | ✅ built (`edgemesh[relay]`) |
+| **Onion relay** + **hardening** (padding · guards · jitter · cover traffic · signed directory) | ✅ built (`edgemesh[relay]`, `relay_dir.py`) |
 | **Min-hardware admission** + **rate limiting / abuse caps** | ✅ built (`limits.py`) |
+| **Deploy anywhere** (installers · Docker · Compose · systemd · **K8s**) | ✅ built (`deploy/`) |
 | Sandboxed execution · distributed training | ⬜ roadmap |
 | Tradeable token / on-chain settlement | ⬜ out of scope (securities decision) |
 

@@ -3,6 +3,30 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.10.0] — 2026-06-13
+
+The "relay hardening + run-anywhere" release.
+
+### Added
+- **Relay hardening** toward stronger anonymity: fixed-bucket **traffic padding** (layer
+  sizes no longer leak circuit position), **guard selection** (stable pinned entry hops),
+  optional **per-hop jitter**, a **cover-traffic** onion builder, and an **Ed25519-signed
+  relay directory** (`relay_dir.py`) so clients verify every relay descriptor against a
+  trusted authority before building a circuit.
+- **Broadened backend discovery** ("all backends compatible"): auto-probe LM Studio
+  (1234), Jan (1337), SGLang (30000), exo (52415), text-generation-webui (5000),
+  KoboldCpp (5001) alongside the Cognis fleet, Ollama, llama.cpp, and the vLLM/Ray/TGI/
+  NIM port. With the exo / vLLM+Ray presets, sharded execution against a live cluster is
+  fully wired (register it as a `--sharding` node; oversized jobs route there).
+- **Deploy anywhere**: Kubernetes manifests (`deploy/k8s/edgemesh.yaml`, Deployment +
+  Service + health probes) and package-manager install notes (brew/winget/pipx).
+- Tests for padding, guards, broadened discovery, and signed-directory verify/tamper
+  (65 tests total).
+
+### Honest scope
+The relay is materially harder to deanonymize now, but still not a guarantee against a
+global passive adversary — see DISCLAIMER.md.
+
 ## [0.9.0] — 2026-06-13
 
 The "comprehensive setup" release.

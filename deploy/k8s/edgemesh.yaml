@@ -1,0 +1,51 @@
+# edgemesh coordinator on Kubernetes.
+#   kubectl apply -f deploy/k8s/edgemesh.yaml
+# Build/push the image first (see Dockerfile): cognis-digital/edgemesh:latest
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edgemesh
+  labels: { app: edgemesh }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: edgemesh }
+  template:
+    metadata:
+      labels: { app: edgemesh }
+    spec:
+      containers:
+        - name: edgemesh
+          image: cognis-digital/edgemesh:latest
+          args: ["serve", "--host", "0.0.0.0", "--port", "8780"]
+          ports:
+            - containerPort: 8780
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8780 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8780 }
+            initialDelaySeconds: 5
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          volumeMounts:
+            - name: config
+              mountPath: /root/.edgemesh
+      volumes:
+        - name: config
+          emptyDir: {}      # swap for a PVC to persist the registry + ledger
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edgemesh
+spec:
+  selector: { app: edgemesh }
+  ports:
+    - name: http
+      port: 8780
+      targetPort: 8780
+  type: ClusterIP        # change to LoadBalancer / add an Ingress to expose it

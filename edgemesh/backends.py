@@ -22,8 +22,14 @@ KNOWN_PORTS: dict[int, str] = {
     8772: "coding-fleet",
     8773: "vision-fleet",
     11434: "ollama",
-    8080: "llamacpp",
-    8000: "openai-compatible",
+    8080: "llamacpp",          # also LocalAI / TGI (host-mapped) default
+    8000: "openai-compatible",  # vLLM / Ray Serve / TGI / NIM default
+    1234: "lmstudio",
+    1337: "jan",
+    30000: "sglang",
+    52415: "exo",
+    5000: "text-generation-webui",
+    5001: "koboldcpp",
 }
 
 

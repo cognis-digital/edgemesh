@@ -36,6 +36,23 @@ GPU backends (vLLM, Ollama, TGI, NIM) run wherever your accelerators are; edgeme
 just meshes their `/v1` endpoints — they can be on the same VM, other VMs, or
 on-prem boxes registered with `edgemesh add` / `edgemesh join`.
 
+## Kubernetes
+```bash
+# build/push the image (see ../Dockerfile), then:
+kubectl apply -f deploy/k8s/edgemesh.yaml      # Deployment + Service + health probes
+kubectl port-forward svc/edgemesh 8780:8780    # reach the gateway locally
+```
+Swap the `emptyDir` for a PVC to persist the registry + ledger, and change the
+Service to `LoadBalancer` (or add an Ingress) to expose it. Run compute nodes
+wherever your accelerators are and `edgemesh node`/`join` them to this coordinator.
+
+## Package managers (convenience)
+```bash
+brew install python@3.12 && ./install.sh        # macOS
+winget install Python.Python.3.12 ; ./install.ps1  # Windows
+pipx install "git+https://github.com/cognis-digital/edgemesh.git"   # any OS w/ pipx
+```
+
 ## Building a cluster across devices
 1. Pick one machine as the **coordinator**: `edgemesh serve` (note its LAN IP).
 2. On every other device (any OS): `edgemesh join http://<coordinator-ip>:8780`.

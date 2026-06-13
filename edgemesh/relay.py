@@ -56,6 +56,22 @@ def _unb64(s: str) -> bytes:
     return base64.b64decode(s.encode())
 
 
+# --- traffic padding (so layer sizes don't leak circuit position) -------------
+PAD_BUCKET = 2048
+
+
+def pad(data: bytes, bucket: int = PAD_BUCKET) -> bytes:
+    """Length-prefix then zero-pad to the next `bucket` multiple."""
+    framed = len(data).to_bytes(4, "big") + data
+    target = ((len(framed) + bucket - 1) // bucket) * bucket
+    return framed + b"\x00" * (target - len(framed))
+
+
+def unpad(blob: bytes) -> bytes:
+    n = int.from_bytes(blob[:4], "big")
+    return blob[4:4 + n]
+
+
 # --- keys --------------------------------------------------------------------
 def gen_keypair() -> tuple[str, str]:
     """Return (private_hex, public_hex) for a relay identity."""
@@ -115,22 +131,32 @@ def build_onion(circuit: list[tuple[str, str]], deliver_endpoint: str, payload: 
     _require()
     if not circuit:
         raise ValueError("circuit must have at least one relay")
-    # innermost: the exit relay is told to deliver
+    # innermost: the exit relay is told to deliver. Each layer is padded to a fixed
+    # bucket before sealing, so a relay can't infer its position from the size.
     _, exit_pub = circuit[-1]
-    blob = seal(exit_pub, json.dumps({"deliver": deliver_endpoint, "payload": payload}).encode())
+    blob = seal(exit_pub, pad(json.dumps({"deliver": deliver_endpoint, "payload": payload}).encode()))
     # wrap outward: each relay learns only the next relay's endpoint + inner blob
     for i in range(len(circuit) - 2, -1, -1):
         next_endpoint = circuit[i + 1][0]
         _, pub = circuit[i]
-        blob = seal(pub, json.dumps({"next": next_endpoint, "blob": blob}).encode())
+        blob = seal(pub, pad(json.dumps({"next": next_endpoint, "blob": blob}).encode()))
     return blob
 
 
 # --- relay node (server side) ------------------------------------------------
-def handle_forward(private_hex: str, blob_b64: str, timeout: float = 300.0) -> dict:
-    """Peel one layer and either forward to the next relay or deliver to a backend."""
+def handle_forward(private_hex: str, blob_b64: str, timeout: float = 300.0,
+                   max_delay_ms: int = 0) -> dict:
+    """Peel one layer and either forward to the next relay or deliver to a backend.
+
+    `max_delay_ms` adds a small random per-hop delay (timing-correlation friction);
+    0 disables it (used in tests).
+    """
     _require()
-    layer = json.loads(unseal(private_hex, blob_b64))
+    if max_delay_ms:
+        import secrets
+        import time
+        time.sleep(secrets.randbelow(max_delay_ms + 1) / 1000.0)
+    layer = json.loads(unpad(unseal(private_hex, blob_b64)))
     if "deliver" in layer:                       # exit relay -> call the compute node
         url = layer["deliver"].rstrip("/") + "/v1/chat/completions"
         body = json.dumps(layer["payload"]).encode()
@@ -151,6 +177,24 @@ def _post_forward(relay_endpoint: str, blob_b64: str, timeout: float = 300.0) ->
 
 
 # --- client helper -----------------------------------------------------------
+def select_guards(relays: list[tuple[str, str]], n: int = 3) -> list[tuple[str, str]]:
+    """Pick a small, *stable* set of entry guards from (endpoint, pubkey) relays.
+
+    Pinning a few guards (rather than a fresh random entry each circuit) is the Tor
+    lesson: it bounds the chance that an adversary ever observes your entry hop.
+    Deterministic by public key so a client keeps the same guards across runs;
+    persist the result and reuse it.
+    """
+    return sorted(relays, key=lambda r: r[1])[:max(1, n)]
+
+
+def build_cover_onion(circuit: list[tuple[str, str]]) -> str:
+    """A padded dummy circuit, indistinguishable on the wire from a real one — send
+    these on a jittered schedule as cover traffic. The exit no-op-delivers to itself."""
+    _require()
+    return build_onion(circuit, circuit[-1][0], {"_cover": True, "messages": []})
+
+
 def fetch_relay(endpoint: str, timeout: float = 10.0) -> tuple[str, str]:
     """Ask a relay for its (endpoint, public_key) via GET /relay/info."""
     with urllib.request.urlopen(endpoint.rstrip("/") + "/relay/info", timeout=timeout) as resp:
