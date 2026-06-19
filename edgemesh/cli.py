@@ -14,6 +14,11 @@
   Cluster & serve
     edgemesh serve [--host H] [--port P]    run the OpenAI-compatible gateway/coordinator
     edgemesh join <coordinator-url>         make THIS device a node of a remote cluster
+  Develop (senior-level dev / git, VSCode-ready)
+    edgemesh agent "<task>"                 run the coding agent on your workspace
+    edgemesh mcp                            MCP server (stdio) for VSCode/Copilot/Cline
+    edgemesh tools                          list the developer toolbelt
+    edgemesh vscode [--write]               print/write VSCode + MCP integration configs
   Experience
     edgemesh setup                          guided first-run setup wizard
     edgemesh menu                           interactive numbered menu
@@ -130,6 +135,24 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--model", required=True)
     p_run.add_argument("--coordinator", default="http://127.0.0.1:8780")
     p_run.add_argument("--consumer", default="cli")
+
+    # Developer agent + tooling (senior-level dev / git, VSCode-ready)
+    p_agent = sub.add_parser("agent", help="run the senior-engineer coding agent on a task")
+    p_agent.add_argument("task", help="what you want done (natural language)")
+    p_agent.add_argument("--model", default=None, help="model id (default: first from the gateway)")
+    p_agent.add_argument("--gateway", default="http://127.0.0.1:8780", help="edgemesh /v1 base url")
+    p_agent.add_argument("--root", default=".", help="workspace directory")
+    p_agent.add_argument("--max-steps", type=int, default=24)
+
+    p_mcp = sub.add_parser("mcp", help="run the MCP server (stdio) for VSCode/Copilot/Cline/Claude")
+    p_mcp.add_argument("--root", default=".", help="workspace directory the tools operate in")
+    p_mcp.add_argument("--gateway", default="http://127.0.0.1:8780", help="edgemesh /v1 base url")
+
+    sub.add_parser("tools", help="list the developer toolbelt")
+
+    p_vsc = sub.add_parser("vscode", help="print/write ready VSCode + MCP integration configs")
+    p_vsc.add_argument("--write", action="store_true", help="write configs into ./.vscode and ./.mcp.json")
+    p_vsc.add_argument("--model", default="", help="default model id to bake into the configs")
 
     args = parser.parse_args(argv)
     registry = BackendRegistry.load(args.config)
@@ -349,6 +372,53 @@ def main(argv: list[str] | None = None) -> int:
         audit = audit_mod.AuditLog() if args.audit else None
         serve(registry, host=args.host, port=args.port, tls=tls, relay_priv=relay_priv,
               keystore=keystore, audit=audit); return 0
+
+    if args.command == "tools":
+        from edgemesh.devtools import openai_tools
+        for t in openai_tools():
+            f = t["function"]
+            print(f"{f['name']:14s} {f['description']}")
+        return 0
+
+    if args.command == "agent":
+        from edgemesh.agent import Agent
+        model = args.model
+        if not model:
+            try:
+                with urllib.request.urlopen(args.gateway.rstrip("/") + "/v1/models", timeout=5) as r:
+                    data = json.loads(r.read().decode("utf-8", "replace")).get("data", [])
+                model = data[0]["id"] if data else None
+            except Exception:
+                model = None
+            if not model:
+                print("no model available; start 'edgemesh serve' with a backend, or pass --model",
+                      file=sys.stderr)
+                return 1
+        def _ev(kind, data):
+            if kind == "tool":
+                print(f"  · {data['name']}({', '.join(f'{k}={v!r}'[:48] for k, v in data['args'].items())})",
+                      file=sys.stderr)
+        print(f"agent: {model} @ {args.gateway} in {Path(args.root).resolve()}", file=sys.stderr)
+        res = Agent(model, base_url=args.gateway, root=args.root,
+                    max_steps=args.max_steps, on_event=_ev).run(args.task)
+        print(res.final)
+        print(f"\n[{res.steps} steps · {len(res.tool_calls)} tool calls · {'ok' if res.ok else 'incomplete'}]",
+              file=sys.stderr)
+        return 0 if res.ok else 1
+
+    if args.command == "mcp":  # pragma: no cover - long-running stdio loop
+        from edgemesh import mcp_server
+        return mcp_server.run(root=args.root, gateway=args.gateway)
+
+    if args.command == "vscode":
+        from edgemesh.integrations import vscode_configs, write_vscode_configs
+        if args.write:
+            for path in write_vscode_configs(Path("."), model=args.model):
+                print(f"wrote {path}")
+        else:
+            for name, blob in vscode_configs(model=args.model).items():
+                print(f"# ===== {name} =====\n{blob}\n")
+        return 0
 
     return 0  # pragma: no cover
 

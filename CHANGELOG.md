@@ -3,6 +3,37 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.13.0] — 2026-06-19
+
+The "developer agent + VSCode" release — edgemesh stops being just a gateway and
+becomes a place you write code, on your own models.
+
+### Added
+- **Developer toolbelt** (`devtools.py`): a sandboxed, pure-stdlib `Toolbelt` —
+  read/write/edit files, `find_files`, `grep`, `run` (shell), `run_tests`
+  (auto-detects pytest/npm/go/cargo), and git (`status/diff/log/add/commit/
+  branch/checkout/show`). Path operations are confined to the workspace root;
+  every shell/git call is timed out and output-truncated. Exposed as both
+  OpenAI tool specs (`openai_tools()`) and MCP descriptors (`mcp_tools()`).
+- **Coding agent** (`agent.py`): a senior-engineer think→act→verify loop that
+  drives any tool-calling model behind the gateway through the toolbelt.
+  `edgemesh agent "<task>"` — runs on the local fleet / cluster, not the cloud.
+- **MCP server** (`mcp_server.py`): newline-delimited JSON-RPC 2.0 over stdio
+  (`edgemesh mcp`). Exposes the toolbelt plus `edgemesh_agent` and
+  `edgemesh_chat`, so GitHub Copilot agent mode, Cline, Cursor, Continue and
+  Claude get edgemesh's tools **and** models. No third-party MCP SDK.
+- **VSCode integration configs** (`integrations.py` + `edgemesh vscode [--write]`):
+  generates `.vscode/mcp.json`, `.mcp.json`, and `.continue/config.json`.
+- **VSCode extension** (`edgemesh-vscode/`, TypeScript): chat sidebar (streaming),
+  *Run Coding Agent on a Task*, AI commit messages from the staged diff,
+  *Explain Selection*, and one-click MCP/VSCode setup.
+- New CLI commands: `agent`, `mcp`, `tools`, `vscode`.
+- 18 new tests (devtools / agent / MCP) — **90 total**.
+
+### Notes
+- The gateway already forwards `tools`/`tool_choice` verbatim, so OpenAI
+  tool-calling works through edgemesh for any backend that supports it.
+
 ## [0.12.0] — 2026-06-13
 
 The "observability + Helm" release — what an ops/platform team needs to run it.

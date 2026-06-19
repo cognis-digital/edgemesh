@@ -1,0 +1,66 @@
+{
+  "name": "edgemesh-vscode",
+  "displayName": "edgemesh — local AI dev cluster",
+  "description": "Code with your own edgemesh cluster: chat, an autonomous senior-engineer agent, AI commit messages, and one-click MCP setup — all on local/self-hosted models.",
+  "version": "0.1.0",
+  "publisher": "cognis-digital",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["AI", "Machine Learning", "Programming Languages", "SCM Providers"],
+  "keywords": ["ai", "llm", "local", "agent", "mcp", "ollama", "copilot", "self-hosted"],
+  "repository": { "type": "git", "url": "https://github.com/cognis-digital/edgemesh" },
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "configuration": {
+      "title": "edgemesh",
+      "properties": {
+        "edgemesh.gateway": {
+          "type": "string",
+          "default": "http://127.0.0.1:8780",
+          "description": "edgemesh gateway base URL (the OpenAI-compatible /v1 lives here)."
+        },
+        "edgemesh.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model id to use. Empty = the first model the gateway reports."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "edgemesh", "title": "edgemesh", "icon": "media/icon.svg" }
+      ]
+    },
+    "views": {
+      "edgemesh": [
+        { "id": "edgemesh.chat", "name": "Chat", "type": "webview" }
+      ]
+    },
+    "commands": [
+      { "command": "edgemesh.focusChat", "title": "edgemesh: Open Chat" },
+      { "command": "edgemesh.runAgent", "title": "edgemesh: Run Coding Agent on a Task" },
+      { "command": "edgemesh.commitWithAI", "title": "edgemesh: Generate Commit Message", "icon": "$(sparkle)" },
+      { "command": "edgemesh.explainSelection", "title": "edgemesh: Explain Selection" },
+      { "command": "edgemesh.setupMcp", "title": "edgemesh: Set Up MCP + VSCode Configs" }
+    ],
+    "menus": {
+      "scm/title": [
+        { "command": "edgemesh.commitWithAI", "when": "scmProvider == git", "group": "navigation" }
+      ],
+      "editor/context": [
+        { "command": "edgemesh.explainSelection", "when": "editorHasSelection", "group": "edgemesh" }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

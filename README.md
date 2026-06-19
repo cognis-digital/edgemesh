@@ -85,6 +85,23 @@ edgemesh setup     # guided first-run wizard (detects hardware, finds backends)
 edgemesh menu      # numbered interactive control surface
 ```
 
+## Code on it (developer agent + VSCode / MCP)
+
+edgemesh ships a sandboxed developer toolbelt (files, search, shell, tests, git),
+a senior-engineer **coding agent**, and an **MCP server** — so your editor's AI
+runs on *your* cluster, not a cloud key.
+
+```bash
+edgemesh agent "add a --json flag to the report command and update its test"
+edgemesh mcp                 # MCP server (stdio) for Copilot/Cline/Cursor/Continue/Claude
+edgemesh vscode --write      # drop .vscode/mcp.json, .mcp.json, .continue/config.json
+edgemesh tools               # list the toolbelt
+```
+
+There's also a VSCode extension in [`edgemesh-vscode/`](edgemesh-vscode/) (chat
+sidebar, run-the-agent, AI commit messages, explain-selection). Full guide:
+[docs/DEV_AGENT.md](docs/DEV_AGENT.md).
+
 ## Connect backends & fit models to hardware
 
 ```bash
@@ -298,6 +315,7 @@ fleet:
 **300+ open security & OSINT tools →** [github.com/cognis-digital](https://github.com/cognis-digital)
 
 ## Docs
+**Develop:** [`docs/DEV_AGENT.md`](docs/DEV_AGENT.md) — coding agent, toolbelt, MCP & VSCode integration
 **Adoption:** [`docs/USE_CASES.md`](docs/USE_CASES.md) · [`SECURITY.md`](SECURITY.md) · [`THREAT_MODEL.md`](THREAT_MODEL.md)
 **Reference:** [`CHANGELOG.md`](CHANGELOG.md) · [`ROADMAP.md`](ROADMAP.md) · [`DISCLAIMER.md`](DISCLAIMER.md) · [`docs/INTEROP.md`](docs/INTEROP.md) · [`deploy/README.md`](deploy/README.md)
 
