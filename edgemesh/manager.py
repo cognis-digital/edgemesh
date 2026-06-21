@@ -54,19 +54,23 @@ def pull(card: ModelCard, *, dry_run: bool = False) -> tuple[bool, str]:
     """Acquire a catalog model with the appropriate tool. Returns (ok, message)."""
     kind, _, ref = card.pull.partition(":")
     if kind == "ollama":
-        if not _has("ollama"):
-            return False, "ollama is not installed — install from https://ollama.com/download"
         cmd = ["ollama", "pull", ref]
+        tool_ok = _has("ollama")
+        missing = "ollama is not installed — install from https://ollama.com/download"
     elif kind == "hf":
         hf = _hf_cmd()
-        if not hf:
-            return False, "Hugging Face CLI not installed — run: pip install -U 'huggingface_hub[cli]'"
-        cmd = hf + [ref]
+        cmd = (hf or ["huggingface-cli", "download"]) + [ref]
+        tool_ok = hf is not None
+        missing = "Hugging Face CLI not installed — run: pip install -U 'huggingface_hub[cli]'"
     else:
         return False, f"unknown pull scheme {kind!r} for {card.id}"
 
+    # A dry run only *builds* the command — it must not require the tool to be
+    # installed, or it can't run in CI / on a fresh box (this was the CI failure).
     if dry_run:
         return True, "DRY RUN: " + " ".join(cmd)
+    if not tool_ok:
+        return False, missing
     try:
         p = subprocess.run(cmd)  # stream to the user's terminal
         ok = p.returncode == 0
