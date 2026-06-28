@@ -21,6 +21,78 @@ privacy relay (`pip install edgemesh[relay]` for real layered encryption).
 
 ---
 
+
+<!-- cognis:example:start -->
+## 🔎 Example output
+
+Real, reproducible output from the tool — runs offline:
+
+```console
+$ edgemesh --help
+usage: edgemesh [-h] [--config CONFIG]
+                {discover,add,fleet,models,backends,hardware,version,setup,menu,catalog,pull,serve,key,gen-relay-key,gen-certs,join,node,presets,swarm,run,agent,mcp,tools,vscode} ...
+
+edgemesh CLI.
+
+positional arguments:
+  {discover,add,fleet,models,backends,hardware,version,setup,menu,catalog,pull,serve,key,gen-relay-key,gen-certs,join,node,presets,swarm,run,agent,mcp,tools,vscode}
+    discover            probe local ports for backends
+    add                 register a backend manually
+    fleet               register the Cognis fleet
+    models              show aggregated model catalog
+    backends            list registered backends
+    hardware            detect hardware + fit budget
+    version             print version
+    setup               guided setup wizard
+    menu                interactive numbered menu
+    catalog             curated models that fit this machine
+    pull                download a catalog model
+    serve               run the gateway / cluster coordinator
+    key                 manage API keys for --auth
+    gen-relay-key       generate an onion-relay identity keypair
+    gen-certs           generate a self-signed dev PKI (CA + server + client)
+    join                join this device to a remote cluster
+    node                join this device to a swarm as a compute node
+    presets             list sharding-backend presets
+    swarm               show the swarm control plane (nodes + ledger)
+    run                 run a distributed job on the swarm
+    agent               run the senior-engineer coding agent on a task
+    mcp                 run the MCP server (stdio) for
+                        VSCode/Copilot/Cline/Claude
+    tools               list the developer toolbelt
+    vscode          
+```
+
+```console
+$ edgemesh catalog
+llama3.3-70b	~41GB	text	ollama:llama3.3:70b	
+dolphin-mixtral	~27GB	text	ollama:dolphin-mixtral:8x7b	[uncensored]
+qwen2.5-32b	~21GB	text	ollama:qwen2.5:32b	
+qwen2.5-coder-32b	~21GB	code	ollama:qwen2.5-coder:32b	
+deepseek-r1-32b	~21GB	text	ollama:deepseek-r1:32b	
+gemma2-9b	~7GB	text	ollama:gemma2:9b	
+qwen2.5-vl-7b	~6GB	vision	hf:Qwen/Qwen2.5-VL-7B-Instruct	
+llama3.1-8b	~6GB	text	ollama:llama3.1:8b	
+deepseek-r1-8b	~6GB	text	ollama:deepseek-r1:8b	
+dolphin3-8b	~6GB	text	ollama:dolphin3	[uncensored]
+qwen3-8b-ablit	~6GB	text	hf:huihui-ai/Qwen3-8B-abliterated	[uncensored]
+llama3.1-8b-ablit	~6GB	text	hf:mlabonne/Meta-Llama-3.1-8B-Instruct-abliterated	[uncensored]
+llava-7b	~6GB	vision	ollama:llava:7b	
+qwen2.5-7b	~5GB	text	ollama:qwen2.5:7b	
+mistral-7b	~5GB	text	ollama:mistral	
+qwen2.5-coder-7b	~5GB	code	ollama:qwen2.5-coder:7b	
+phi3.5-mini	~3GB	text	ollama:phi3.5	
+qwen2.5-3b	~2GB	text	ollama:qwen2.5:3b	
+gemma2-2b	~2GB	text	ollama:gemma2:2b	
+llama3.2-1b	~1GB	text	ollama:llama3.2:1b	
+qwen2.5-0.5b	~0GB	text	ollama:qwen2.5:0.5b	
+nomic-embed	~0GB	embedding	ollama:nomic-embed-text
+```
+
+> Blocks above are real `edgemesh` output — reproduce them from a clone.
+
+<!-- cognis:example:end -->
+
 ## System architecture
 
 ```mermaid

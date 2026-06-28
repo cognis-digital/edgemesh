@@ -1,0 +1,34 @@
+$ edgemesh --help
+
+usage: edgemesh [-h] [--config CONFIG]
+                {discover,add,fleet,models,backends,hardware,version,setup,menu,catalog,pull,serve,key,gen-relay-key,gen-certs,join,node,presets,swarm,run,agent,mcp,tools,vscode} ...
+
+edgemesh CLI.
+
+positional arguments:
+  {discover,add,fleet,models,backends,hardware,version,setup,menu,catalog,pull,serve,key,gen-relay-key,gen-certs,join,node,presets,swarm,run,agent,mcp,tools,vscode}
+    discover            probe local ports for backends
+    add                 register a backend manually
+    fleet               register the Cognis fleet
+    models              show aggregated model catalog
+    backends            list registered backends
+    hardware            detect hardware + fit budget
+    version             print version
+    setup               guided setup wizard
+    menu                interactive numbered menu
+    catalog             curated models that fit this machine
+    pull                download a catalog model
+    serve               run the gateway / cluster coordinator
+    key                 manage API keys for --auth
+    gen-relay-key       generate an onion-relay identity keypair
+    gen-certs           generate a self-signed dev PKI (CA + server + client)
+    join                join this device to a remote cluster
+    node                join this device to a swarm as a compute node
+    presets             list sharding-backend presets
+    swarm               show the swarm control plane (nodes + ledger)
+    run                 run a distributed job on the swarm
+    agent               run the senior-engineer coding agent on a task
+    mcp                 run the MCP server (stdio) for
+                        VSCode/Copilot/Cline/Claude
+    tools               list the developer toolbelt
+    vscode          
