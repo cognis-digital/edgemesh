@@ -23,3 +23,5 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
+
+media/walkthrough.mp4
