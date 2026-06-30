@@ -157,6 +157,39 @@ edgemesh setup     # guided first-run wizard (detects hardware, finds backends)
 edgemesh menu      # numbered interactive control surface
 ```
 
+## Demos
+
+Five runnable, audience-varied scenarios in [`demos/`](demos/). They use bundled
+**offline fixtures** (in-process stub backends + a snapshot swarm), so they run
+with no models loaded and no network — and they double as smoke tests under
+`pytest` (`tests/test_demos.py`).
+
+```bash
+PYTHONUTF8=1 python demos/run_all.py             # all five, end to end (exits 0)
+PYTHONUTF8=1 python demos/03_swarm_scheduling.py # or just one
+```
+
+| # | Demo | Audience | Shows |
+|---|------|----------|-------|
+| 1 | [`01_unify_backends.py`](demos/01_unify_backends.py) | Platform engineers | Merge many backends into one catalog; route + failover via `Router` |
+| 2 | [`02_fit_models_to_hardware.py`](demos/02_fit_models_to_hardware.py) | Solo devs / hobbyists | Turn a VRAM budget into a model shortlist; detect this machine |
+| 3 | [`03_swarm_scheduling.py`](demos/03_swarm_scheduling.py) | Distributed-systems teams | Privacy gate → VRAM fit → reputation auction → ledger settlement |
+| 4 | [`04_privacy_relay.py`](demos/04_privacy_relay.py) | Privacy-conscious users | Build & peel a 3-hop onion; each hop sees only the next (fails closed) |
+| 5 | [`05_live_gateway.py`](demos/05_live_gateway.py) | Ops / compliance | Real `/v1` round-trip with Prometheus `/metrics` + metadata-only audit |
+
+```mermaid
+flowchart LR
+    client([OpenAI client / CLI]) --> GW["/v1 gateway + router"]
+    GW --> REG[backend registry<br/>aggregated catalog]
+    GW --> SCH["scheduler<br/>privacy · fit · auction"]
+    SCH --> NODES["swarm nodes<br/>Class A / B / C + sharding"]
+    SCH --> LED[ledger<br/>credits + reputation]
+    client -.private.-> RELAY[onion relay circuit]
+    RELAY -.deliver.-> NODES
+```
+
+Full write-up: [docs/DEMOS.md](docs/DEMOS.md) · architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Code on it (developer agent + VSCode / MCP)
 
 edgemesh ships a sandboxed developer toolbelt (files, search, shell, tests, git),
@@ -387,6 +420,7 @@ fleet:
 **300+ open security & OSINT tools →** [github.com/cognis-digital](https://github.com/cognis-digital)
 
 ## Docs
+**Understand:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how the gateway + swarm fit together · [`docs/DEMOS.md`](docs/DEMOS.md) — the five runnable scenarios
 **Develop:** [`docs/DEV_AGENT.md`](docs/DEV_AGENT.md) — coding agent, toolbelt, MCP & VSCode integration
 **Adoption:** [`docs/USE_CASES.md`](docs/USE_CASES.md) · [`SECURITY.md`](SECURITY.md) · [`THREAT_MODEL.md`](THREAT_MODEL.md)
 **Reference:** [`CHANGELOG.md`](CHANGELOG.md) · [`ROADMAP.md`](ROADMAP.md) · [`DISCLAIMER.md`](DISCLAIMER.md) · [`docs/INTEROP.md`](docs/INTEROP.md) · [`deploy/README.md`](deploy/README.md)
