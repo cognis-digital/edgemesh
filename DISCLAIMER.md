@@ -1,46 +1,26 @@
-# Disclaimer & scope
+# Disclaimer & Legal Notice
 
-## Compute credits are not a cryptocurrency or a security
+(c) 2026 Cognis Digital LLC (Wyoming, USA). All rights reserved.
+Licensed under the Cognis Open Collaboration License (COCL) v1.0 - see LICENSE.
 
-edgemesh's swarm includes a **credits + reputation ledger** so nodes can earn
-credit for completing jobs and consumers can spend credit to run them. This is an
-**internal accounting unit**. edgemesh deliberately does **not** implement:
+## No Warranty & Limitation of Liability
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, express or implied, including merchantability, fitness for a particular purpose, and non-infringement. IN NO EVENT SHALL Cognis Digital LLC, its members, or contributors BE LIABLE for any claim, loss, or damages (direct, indirect, incidental, consequential, or punitive) arising from or in connection with the Software or its use, even if advised of the possibility. You assume all risk and are solely responsible for your use.
 
-- a transferable / on-chain token,
-- an exchange or any buy/sell/stake-for-profit mechanism,
-- any representation that credits are an investment or will appreciate.
+## Authorized Use Only (dual-use security software)
+Use only against systems, networks, accounts, and data you own or are **explicitly authorized in writing** to test, and in full compliance with applicable law. You are solely responsible for your use. Unauthorized use may be illegal.
 
-Turning credits into a real, tradeable token is a separate product decision with
-**securities, money-transmission, tax, and consumer-protection implications** that
-vary by jurisdiction. That is a decision for the operator and their legal counsel —
-it is intentionally out of scope for this software.
+## Not Financial Advice
+This software and its outputs do **not** constitute financial, investment, or trading advice. Trading and investing carry substantial risk of loss. Decisions and outcomes are entirely your own; past or simulated performance does not predict future results.
 
-## Transports
+## AI Output Notice
+AI/ML outputs are probabilistic and may be inaccurate, incomplete, biased, or fabricated ("hallucinations"). Verify independently before relying on them; do not use outputs as the sole basis for consequential decisions.
 
-The swarm's communication layer is designed as a pluggable software seam (HTTP/TLS
-today; LAN/mesh/other adapters are roadmap). Operating any licensed radio spectrum
-is the operator's responsibility and must comply with applicable regulations;
-edgemesh ships no capability to do so.
-
-## Privacy relay (onion routing)
-
-The optional relay routes requests through multiple community relays with one
-encryption layer per hop, so a single relay cannot link the requester to the
-compute node. Be clear-eyed about what this is:
-
-- It **is** real layered encryption + multi-hop routing that defeats a single
-  curious/compromised relay.
-- It is **not** Tor-grade anonymity — there is no traffic mixing, timing-analysis
-  resistance, cover traffic, padding, or a large anonymity set. A global passive
-  adversary, or correlation across entry+exit, can still deanonymize.
-- It is for **privacy in a community compute network**. It is **not** for evading
-  law enforcement, hiding illegal activity, or relaying abuse. Relay operators are
-  responsible for their jurisdiction's rules; run a relay only if you accept that.
-- Encryption requires the `cryptography` package; without it the relay refuses to
-  operate (fails closed) rather than sending anything unprotected.
-
-## Operation
-
-You are responsible for the security, lawfulness, and acceptable use of any swarm
-you run, and for the data your nodes process. Run public (Class C) nodes only on
-hardware and networks you control and are willing to share.
+## License Terms (COCL v1.0 summary)
+- **Source-available, not OSI open-source.** Free for **Non-Commercial Use** (personal, research, education, authorized security testing, <=30-day internal eval).
+- **Commercial Use requires a separate license** - contact licensing@cognis.digital.
+- Retain this notice, the LICENSE, and all attribution in copies/derivatives; mark modified files as changed.
+- **Contributions** are licensed inbound=outbound and grant Cognis a perpetual, sublicensable, relicensable license (enables dual-licensing).
+- Limited patent grant; terminates if you initiate patent litigation over the Software.
+- No trademark rights to "Cognis"/"Cognis Digital" beyond customary attribution.
+- License terminates on uncured breach (30 days). Full terms govern: see LICENSE.
+Questions: legal@cognis.digital - https://cognis.digital
