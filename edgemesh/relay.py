@@ -27,6 +27,8 @@ import json
 import os
 import urllib.request
 
+from edgemesh.limits import MAX_CIRCUIT_HOPS
+
 try:
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric.x25519 import (
@@ -131,6 +133,10 @@ def build_onion(circuit: list[tuple[str, str]], deliver_endpoint: str, payload: 
     _require()
     if not circuit:
         raise ValueError("circuit must have at least one relay")
+    if len(circuit) > MAX_CIRCUIT_HOPS:
+        raise ValueError(
+            f"circuit has {len(circuit)} hops, exceeding the {MAX_CIRCUIT_HOPS}-hop "
+            "cap (limits.MAX_CIRCUIT_HOPS) — long circuits are a DoS / loop risk")
     # innermost: the exit relay is told to deliver. Each layer is padded to a fixed
     # bucket before sealing, so a relay can't infer its position from the size.
     _, exit_pub = circuit[-1]

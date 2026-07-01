@@ -79,9 +79,19 @@ class NodeInfo:
     @classmethod
     def from_dict(cls, d: dict) -> "NodeInfo":
         prof = d.get("profile") or {}
+        if not isinstance(prof, HardwareProfile):
+            # tolerate a partial/empty profile dict: the three required identity
+            # fields default so a malformed registration deserializes cleanly
+            # (and is then rejected by the hardware floor) rather than crashing
+            # with a raw TypeError deep in the handler.
+            prof = HardwareProfile(os=prof.get("os", "unknown"),
+                                   arch=prof.get("arch", "unknown"),
+                                   accelerator=prof.get("accelerator", "cpu"),
+                                   **{k: v for k, v in prof.items()
+                                      if k not in ("os", "arch", "accelerator")})
         return cls(node_id=d["node_id"], name=d.get("name", ""),
                    node_class=d.get("node_class", CLASS_C), endpoint=d.get("endpoint", ""),
-                   profile=HardwareProfile(**prof) if not isinstance(prof, HardwareProfile) else prof,
+                   profile=prof,
                    reputation=float(d.get("reputation", 1.0)), last_seen=float(d.get("last_seen", 0.0)),
                    sharding=bool(d.get("sharding", False)))
 
