@@ -20,7 +20,7 @@ import urllib.request
 from edgemesh.devtools import Toolbelt, dispatch, mcp_tools, TOOL_NAMES
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_INFO = {"name": "edgemesh", "version": "0.13.0"}
+SERVER_INFO = {"name": "edgemesh", "version": "0.13.1"}
 
 # Two extra tools beyond the raw toolbelt: run the coding agent, or chat a model.
 _EXTRA_TOOLS = [

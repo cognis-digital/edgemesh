@@ -18,6 +18,21 @@ SCENARIOS = [
     "03_swarm_scheduling",
     "04_privacy_relay",
     "05_live_gateway",
+    "06_router_failover",
+    "07_distributed_execution",
+    "08_scatter_gather",
+    "09_credits_reputation",
+    "10_sharding_presets",
+    "11_auth_audit",
+    "12_rate_limiting",
+    "13_streaming_metered",
+    "14_cluster_join",
+    "15_relay_directory",
+    "16_privacy_gate",
+    "17_metrics_observability",
+    "18_vscode_integration",
+    "19_error_handling",
+    "20_end_to_end",
 ]
 
 

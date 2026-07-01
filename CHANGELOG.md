@@ -3,6 +3,34 @@
 All notable changes to edgemesh are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/); versions use SemVer.
 
+## [0.13.1] — 2026-07-01
+
+Depth + hardening release: 4× the test suite (96 → 384 test functions, plus demo
+smoke tests), 4× the runnable demos (5 → 20), and two real robustness fixes.
+
+### Fixed
+- **Relay circuit hop cap now enforced.** `limits.MAX_CIRCUIT_HOPS` (6) was
+  documented and advertised (in the wizard and docs) as a DoS / loop guard but was
+  never actually checked. `relay.build_onion` — the single construction point that
+  `send_via_circuit` and `build_cover_onion` both route through — now raises a clear
+  `ValueError` naming the cap when a circuit exceeds it. No public API change.
+- **`NodeInfo.from_dict` no longer crashes on a partial profile.** A registration
+  payload with a missing or incomplete `profile` raised a raw
+  `TypeError: HardwareProfile.__init__() missing 3 required positional arguments`
+  deep in the request handler. It now fills the three required identity fields
+  (`os`/`arch`/`accelerator`) with safe defaults so a malformed node deserializes
+  cleanly and is then rejected by the hardware floor with a legible error. Full
+  profiles behave exactly as before.
+
+### Added
+- ~290 new tests across router failover, hardware fit, swarm scheduling/auction/
+  ledger, onion relay crypto (incl. the hop-cap regression test), gateway/metrics
+  error paths, protocol tokens, auth, MCP, limits, and executor failover.
+- 15 new offline demos (`06`–`20`): router failover, distributed execution,
+  scatter/gather, credits+reputation, sharding presets, auth+audit, rate limiting,
+  streaming+metered billing, cluster join, signed relay directory, privacy gate,
+  metrics observability, editor integration, error handling, and an end-to-end tour.
+
 ## [0.13.0] — 2026-06-19
 
 The "developer agent + VSCode" release — edgemesh stops being just a gateway and
